@@ -1,0 +1,7 @@
+python-docx>=0.8.11
+tk
+pandas>=1.5.3
+PyPDF2
+openpyxl
+PyMuPDF
+fitz
