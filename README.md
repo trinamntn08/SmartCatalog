@@ -1,10 +1,10 @@
 # SmartCatalog
 
-Activate virtual env
+### Activate virtual env
 
 .\venv\Scripts\activate
 
 
-Install requirements
+### Install requirements
 
 pip install -r .\requirements.txt
