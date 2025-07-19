@@ -1,0 +1,51 @@
+raw_text,tool,shape,length_mm,tip,quantity,brand,coating_or_tip,material,handle_color,product_category
+"Bát đựng bệnh phẩm, cao 50- 72mm, dung tích 300-400ml: 02 Cái",bát đựng bệnh ph,,,,02 cái,,,,,
+"Kẹp săng Backhaus hoặc tương đương, dài 135mm: 06 cái",k,,135.0,,06 cái,Backhaus,,,,Clamp
+"Kẹp gắp bông băng Foerster-Ballenger hoặc tương đương, thẳng, dài ≥245mm: 02 cái",k,thẳng,245.0,,02 cái,Foerster-Ballenger,,,,Clamp
+"Cán dao mổ, số 3, có thước đo, dài 125mm: 01 cái",cán dao mổ,,125.0,,01 cái,,,,,Scalpel
+"Cán dao mổ, số 4, dài ≥135mm",cán dao mổ,,135.0,,,,,,,Scalpel
+"Kéo phẫu thuật Mayo hoặc tương đương, cong, lưỡi vát, mũi tù/tù, dài ≥170mm: 01 cái",k,cong,170.0,tù,01 cái,Mayo,,,,Scissors
+"Kéo phẫu thuật Mayo hoặc tương đương, thẳng, lưỡi vát, mũi tù/tù, dài ≥170mm: 01 cái",k,thẳng,170.0,tù,01 cái,Mayo,,,,Scissors
+"Kéo phẫu thuật Mayo hoặc tương đương, cong, lưỡi vát, mũi tù/tù, dài ≥215mm: 01 cái",k,cong,215.0,tù,01 cái,Mayo,,,,Scissors
+"Kéo phẫu tích Metzenbaum TC hoặc tương đương, mảnh, cong, mũi tù/tù, cán vàng, dài 230mm: 01 cái",k,cong,230.0,tù,01 cái,Metzenbaum,TC,,vàng,Scissors
+"Kéo phẫu tích Metzenbaum TC hoặc tương đương, mảnh, cong, mũi tù/tù, cán vàng, dài 180mm: 01 cái",k,cong,180.0,tù,01 cái,Metzenbaum,TC,,vàng,Scissors
+"Ống hút Pool hoặc tương đương, thẳng, dài 225mm, đường kính số 30, đường kính ≥10mm, dùng cho ống hút đường kính 8-10,5mm: 01 cái",ống h,thẳng,225.0,,01 cái,,,,,Suction
+"Ống hút Yankauer hoặc tương đương, dài 285mm, đường kính 2mm, dùng cho ống hút đường kính 7-9mm: 01 cái",ống h,,285.0,,01 cái,Yankauer,,,,Suction
+"Kẹp động mạch Crile hoặc tương đương, mảnh, cong, dài ≥140mm: 10 cái",k,cong,140.0,,10 cái,Crile,,,,Clamp
+"Kẹp động mạch Crile hoặc tương đương, mảnh, thẳng, dài ≥140mm: 04 cái",k,thẳng,140.0,,04 cái,Crile,,,,Clamp
+"Kẹp động mạch Crile hoặc tương đương, mảnh, cong, dài ≥160mm, không quá 220mm: 04 cái",k,cong,160.0,,04 cái,Crile,,,,Clamp
+"Kẹp động mạch Crile hoặc tương đương, mảnh, thẳng, dài ≥160mm: 02 cái",k,thẳng,160.0,,02 cái,Crile,,,,Clamp
+"Kẹp phẫu tích mô Allis hoặc tương đương, ngàm có răng 5x6, dài 155mm: 02 cái",k,,155.0,,02 cái,Allis,,,,Clamp
+"Kẹp phẫu tích mô Babcock hoặc tương đương, dài ≥170mm: 02 cái",k,,170.0,,02 cái,Babcock,,,,Clamp
+"Kẹp mạch máu không chấn thương De Bakey-Pean Atraumata hoặc tương đương, thẳng, ngàm có răng De Bakey hoặc tương đương, dài 200mm, ngàm dài ≥60mm: 01 cái",k,thẳng,200.0,,01 cái,De Bakey,,,,Clamp
+"Kẹp mạch máu không chấn thương De Bakey-Pean Atraumata hoặc tương đương, cong, ngàm có răng De Bakey hoặc tương đương, dài 200mm, ngàm dài ≥60mm: 01 cái",k,cong,200.0,,01 cái,De Bakey,,,,Clamp
+"Kẹp ruột Doyen hoặc tương đương, thẳng, lưỡi mềm và đàn hồi, dài ≥235mm: 02 cái",k,thẳng,235.0,,02 cái,Doyen,,,,Clamp
+"Kẹp phẫu tích Gemini hoặc tương đương, gập góc phải, dài ≥180mm: 01 cái",k,,180.0,,01 cái,Gemini,,,,Clamp
+"Kẹp phẫu tích Gemini hoặc tương đương, gập góc phải, dài ≥230mm: 01 cái",k,,230.0,,01 cái,Gemini,,,,Clamp
+"Kẹp không chấn thương De Bakey Atraumata hoặc tương đương, thẳng, ngàm có răng De Bakey hoặc tương đương, dài ≥200mm, ngàm rộng 2mm: 01 cái",k,thẳng,200.0,,01 cái,De Bakey,,,,Clamp
+"Kẹp không chấn thương De Bakey Atraumata hoặc tương đương, thẳng, ngàm có răng De Bakey hoặc tương đương, dài ≥240mm, ngàm rộng 2mm: 01 cái",k,thẳng,240.0,,01 cái,De Bakey,,,,Clamp
+"Kẹp không chấn thương De Bakey Atraumata hoặc tương đương, thẳng, ngàm có răng De Bakey hoặc tương đương, dài ≥150mm, ngàm rộng 1mm: 01 cái",k,thẳng,150.0,,01 cái,De Bakey,,,,Clamp
+"Kẹp không chấn thương De Bakey Atraumata hoặc tương đương, thẳng, ngàm có răng De Bakey hoặc tương đương, dài ≥240mm, ngàm rộng 1mm: 01 cái",k,thẳng,240.0,,01 cái,De Bakey,,,,Clamp
+"Nhíp phẫu tích, thẳng, loại nhỡ, ngàm có khía, dài ≥160mm: 01 cái",nh,thẳng,160.0,,01 cái,,,,,Forceps
+Nhíp phẫu tích không mấu 16cm: 02 cái,nh,,,,02 cái,,,,,Forceps
+"Nhíp phẫu tích Cushing hoặc tương đương, dài ≥ 16cm, không quá 18cm: 01 cái",nh,,,,01 cái,Cushing,,,,Forceps
+"Nhíp mô, Waugh hoặc tương đương: 01 cái",nh,,,,01 cái,Waugh,,,,Forceps
+"Đè bụng/ruột Ribbon hoặc tương đương, dễ uốn, dài ≥330mm, lưỡi rộng 50mm: 02 cái",đ,,330.0,,02 cái,Ribbon,,,,
+"Banh vết thương US-Army hoặc tương đương, hai đầu, bộ 2 chiếc, dài 220mm, kích thước 22 x 15mm, 26 x 15mm, 39 x 15mm, 43 x 15mm: 01 cái",banh vết thương us-army hoặc tương đương,,220.0,,2 chiếc,US-Army,,,,Retractor
+"Bộ banh tổ chức Richardson-Eastman hoặc tương đương, gồm 2 chiếc: 01 Bộ",bộ banh tổ chức richardson-eastman hoặc tương đương,,,,2 chiếc,Richardson-Eastman,,,,Retractor
+"Banh tổ chức Deaver hoặc tương đương, số 2 hoặc số 8, dài 315mm, kích thước lưỡi 25-50mm: 01 Cái",banh tổ chức deaver hoặc tương đương,,315.0,,01 cái,Deaver,,,,Retractor
+"Banh tổ chức Deaver hoặc tương đương, số 4, dài 310mm, kích thước lưỡi 25-50mm: 01 Cái",banh tổ chức deaver hoặc tương đương,,310.0,,01 cái,Deaver,,,,Retractor
+"Bộ banh bụng Balfour hoặc tương đương hoàn chỉnh, sâu 200mm, rộng 170mm, độ banh rộng 155mm-180mm: 01 Cái",bộ banh b,,,,01 cái,Balfour,,,,Retractor
+"Kẹp mang kim Hegar-Mayo TC hoặc tương đương, thẳng, bước răng 0,50mm, dùng cho chỉ tới 3/0 hoặc 4/0, dài 185mm: 01 Cái",k,thẳng,185.0,,01 cái,Mayo,TC,,,Clamp
+"Kẹp mang kim De Bakey TC hoặc tương đương, thẳng, bước răng 0,40mm, dùng cho chỉ 4/0-6/0, dài ≥230mm: 01 Cái",k,thẳng,230.0,,01 cái,De Bakey,TC,,,Clamp
+"Kẹp mang kim Mayo-Hegar hoặc tương đương, kiểu mảnh, cỡ vừa, thẳng, ngàm răng cưa có rãnh dọc, dài ≥150mm: 01 Cái",k,thẳng,150.0,,01 cái,Mayo,,,,Clamp
+"Kéo phẫu thuật, loại chuẩn, thẳng, mũi tù/tù, dài 175mm: 01 Cái",k,thẳng,175.0,tù,01 cái,,,,,Scissors
+"Vòng giữ dụng cụ có cán vòng Mayo, dài ≥140mm: 06 Cái",v,,140.0,,06 cái,Hegar-Mayo,,,,
+"Kẹp mạch máu Crafoord (Modif.) hoặc tương đương, mảnh, cong, đầu tù, dài ≥240mm: 04 Cái",k,cong,240.0,,04 cái,Crafoord,,,,Clamp
+"Kẹp cầm máu Coller hoặc tương đương, cong, đầu tù, dài ≥160mm: 04 Cái",k,cong,160.0,,04 cái,Coller,,,,Clamp
+"Bát đựng bệnh phẩm, dài ≥151mm, cao ≥70mm, dung tích 1000ml: 01 Cái",bát đựng bệnh ph,,151.0,,01 cái,,,,,
+"Kẹp cầm máu Kocher-Ochsner hoặc tương đương, thẳng, ngàm có răng 1x2, dài 185mm: 02 Cái",k,thẳng,185.0,,02 cái,Kocher-Ochsner,,,,Clamp
+Nắp hộp đựng và bảo quản dụng cụ phẫu thuật dùng màng lọc nhiều lần: 01 Cái,nắp hộp đựng và bảo quản d,,,,01 cái,,,,,
+"Đáy hộp đựng và bảo quản dụng cụ phẫu thuật, cỡ 1/1, chiều cao ≥135mm: 01 Cái",đáy hộp đựng và bảo quản d,,,,01 cái,,,,,
+Khay lưới cao 100-110 mm: 01 Cái,khay lưới cao,,,,01 cái,,,,,
+Khóa cài niêm phong: 02 Cái,kh,,,,02 cái,,,,,
