@@ -5,10 +5,12 @@ import threading
 import io
 import traceback
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk, scrolledtext, messagebox, filedialog
 from pathlib import Path
 from typing import Callable, Optional, TYPE_CHECKING
 import sqlite3
+import os
 import shutil
 import datetime
 if TYPE_CHECKING:
@@ -158,7 +160,7 @@ class MainWindow(
 
     def _build_layout(self) -> None:
         self.pack(fill="both", expand=True)
-        self.root.title("SmartCatalog — Trình quản lý danh mục")
+        self.root.title("SmartCatalog — Trình quản lý danh mục sản phẩm y tế")
 
         self.toolbar = ttk.Frame(self)
         self.toolbar.pack(fill="x", pady=(0, 8))
@@ -170,7 +172,7 @@ class MainWindow(
         self.btn_match_excel.pack(side="left")
 
         self.btn_backup = ttk.Button(self.toolbar, text="💾 Backup CSDL", command=self.on_backup_data)
-        self.btn_backup.pack(side="left", padx=(6, 0))
+        # Hidden for now
 
         self.btn_refresh = ttk.Button(self.toolbar, text="🔄 Làm mới", command=self.refresh_items)
 
@@ -187,7 +189,6 @@ class MainWindow(
             text="Tùy chọn xuất ▼",
             command=self._toggle_search_options_popup,
         )
-        self.btn_search_images_opts.pack(side="left", padx=(6, 0))
         self._search_opts_popup: Optional[tk.Toplevel] = None
         self._search_opts_root_bind_id: Optional[str] = None
 
@@ -198,12 +199,25 @@ class MainWindow(
         self.left_pane = ttk.Frame(self.panes)
         self.right_pane = ttk.Frame(self.panes)
 
-        self.panes.add(self.left_pane, weight=1)
-        self.panes.add(self.right_pane, weight=3)
+        self.panes.add(self.left_pane, weight=3)
+        self.panes.add(self.right_pane, weight=2)
 
         # Scrollable container inside right pane
         self.right_scroll = ScrollableFrame(self.right_pane)
         self.right_scroll.pack(fill="both", expand=True)
+
+        # Initial split: left 60%, right 40%
+        self.root.after(80, self._set_initial_pane_ratio)
+
+    def _set_initial_pane_ratio(self) -> None:
+        try:
+            total = int(self.panes.winfo_width() or 0)
+            if total <= 1:
+                self.root.after(80, self._set_initial_pane_ratio)
+                return
+            self.panes.sashpos(0, int(total * 0.6))
+        except Exception:
+            return
 
 
     def _build_left_panel(self) -> None:
@@ -233,6 +247,11 @@ class MainWindow(
             "validated",
         )
         self.items_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=18)
+        # Highlight matched rows when filtering
+        base_font = tkfont.nametofont(ttk.Style().lookup("Treeview", "font") or "TkDefaultFont")
+        match_font = base_font.copy()
+        match_font.configure(weight="bold")
+        self.items_tree.tag_configure("match", background="#fff4c2", font=match_font)
         self.items_tree.heading("id", command=lambda: self._sort_by("id"))
         self.items_tree.heading("code",command=lambda: self._sort_by("code"))
         self.items_tree.heading("page", command=lambda: self._sort_by("page"))
@@ -270,22 +289,29 @@ class MainWindow(
         xscroll.grid(row=1, column=0, sticky="ew")
 
         self.items_tree.bind("<<TreeviewSelect>>", self._on_select_item)
+        self.items_tree.bind("<ButtonPress-1>", self._on_items_tree_click_before_select, add="+")
         self._update_sort_headers()
 
     def _build_right_panel(self) -> None:
         parent = self.right_scroll.inner
 
         self._build_item_editor_section(parent)
-        self._build_images_section(parent)
         self._build_candidates_section_simple(parent)
 
 
     def _build_item_editor_section(self, parent) -> None:
+        # "Thêm mới" sits above the "Sản phẩm" section.
+        add_row = ttk.Frame(parent)
+        add_row.pack(fill="x", pady=(0, 4))
+        add_row.columnconfigure(0, weight=1)
+        self.btn_add_item = ttk.Button(add_row, text="➕ Thêm mới", command=self.on_add_item)
+        self.btn_add_item.grid(row=0, column=1, sticky="e")
+
         editor = ttk.LabelFrame(parent, text="🧾 Sản phẩm", padding=8)
         editor.pack(fill="x", pady=(0, 0))
         editor.columnconfigure(1, weight=1)
 
-        # --- Top row: PDF info + Save button ---
+        # --- Action row: PDF info + Save/Delete ---
         top = ttk.Frame(editor)
         top.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
         top.columnconfigure(0, weight=1)
@@ -294,12 +320,10 @@ class MainWindow(
         self.pdf_tools_label.grid(row=0, column=0, sticky="w")
         self.btn_save = ttk.Button(top, text="💾 Lưu", command=self.on_save_item)
         self.btn_save.grid(row=0, column=1, sticky="e", padx=(0, 6))
-        self.btn_add_item = ttk.Button(top, text="➕ Thêm mới", command=self.on_add_item)
-        self.btn_add_item.grid(row=0, column=2, sticky="e", padx=(0, 6))
         self.btn_delete_item = ttk.Button(top, text="🗑️ Xóa", command=self.on_delete_item)
-        self.btn_delete_item.grid(row=0, column=3, sticky="e")
+        self.btn_delete_item.grid(row=0, column=2, sticky="e")
         self.chk_validated = ttk.Checkbutton(top, text="Đã kiểm duyệt", variable=self.var_validated)
-        self.chk_validated.grid(row=1, column=1, columnspan=3, sticky="e", pady=(4, 0))
+        self.chk_validated.grid(row=1, column=1, columnspan=2, sticky="e", pady=(4, 0))
 
         # --- Fields (replaces "Item fields" box) ---
         r = 1
@@ -352,6 +376,11 @@ class MainWindow(
         ttk.Label(editor, text="Mô tả VI từ Excel").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=3)
         self.description_vietnames_from_excel_text = scrolledtext.ScrolledText(editor, wrap="word", height=4)
         self.description_vietnames_from_excel_text.grid(row=r, column=1, sticky="ew", pady=3)
+
+        # Ảnh là một phần của nhóm "Sản phẩm"
+        images_holder = ttk.Frame(editor)
+        images_holder.grid(row=r + 1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self._build_images_section(images_holder)
 
     def on_open_pdf_cropper(self) -> None:
         if not self.state.catalog_pdf_path:
@@ -407,36 +436,36 @@ class MainWindow(
         images_frame = ttk.LabelFrame(parent, text="🖼 Ảnh", padding=8)
         images_frame.pack(fill="both", expand=False, pady=(8, 0))
 
-        thumb_container = ttk.Frame(images_frame)
-        thumb_container.pack(side="left", fill="both", expand=True)
+        content = ttk.Frame(images_frame)
+        content.pack(fill="both", expand=True)
 
-        self.thumb_canvas = tk.Canvas(thumb_container, height=180)
-        self.thumb_canvas.pack(side="left", fill="both", expand=True)
+        btn_col = ttk.Frame(content)
+        btn_col.pack(side="right", fill="y", padx=(8, 0))
+        ttk.Button(btn_col, text="Thêm ảnh", command=self.on_add_image).pack(fill="x")
+        ttk.Button(btn_col, text="Xoay 90°", command=lambda: self.on_rotate_selected_image(90)).pack(fill="x", pady=(4, 0))
+        ttk.Button(btn_col, text="Xóa ảnh đã chọn", command=self.on_remove_selected_thumbnail).pack(fill="x", pady=(4, 0))
 
-        thumb_scroll = ttk.Scrollbar(thumb_container, orient="vertical", command=self.thumb_canvas.yview)
-        thumb_scroll.pack(side="right", fill="y")
+        thumb_host = ttk.Frame(content)
+        thumb_host.pack(side="left", fill="both", expand=True)
+
+        self.thumb_canvas = tk.Canvas(thumb_host, height=180, highlightthickness=0)
+        thumb_scroll = ttk.Scrollbar(thumb_host, orient="vertical", command=self.thumb_canvas.yview)
         self.thumb_canvas.configure(yscrollcommand=thumb_scroll.set)
 
+        thumb_scroll.pack(side="right", fill="y")
+        self.thumb_canvas.pack(side="left", fill="both", expand=True)
+
         self.thumb_inner = ttk.Frame(self.thumb_canvas)
-        self.thumb_canvas.create_window((0, 0), window=self.thumb_inner, anchor="nw")
+        self.thumb_canvas_window = self.thumb_canvas.create_window((0, 0), window=self.thumb_inner, anchor="nw")
 
         def _on_thumb_inner_configure(_e=None):
             self.thumb_canvas.configure(scrollregion=self.thumb_canvas.bbox("all"))
 
+        def _on_thumb_canvas_configure(evt):
+            self.thumb_canvas.itemconfig(self.thumb_canvas_window, width=evt.width)
+
         self.thumb_inner.bind("<Configure>", _on_thumb_inner_configure)
-
-        right_col = ttk.Frame(images_frame)
-        right_col.pack(side="left", fill="y", padx=(10, 0))
-
-        self.image_preview_label = ttk.Label(right_col)
-        self.image_preview_label.pack(fill="both", expand=False)
-
-        btns = ttk.Frame(right_col)
-        btns.pack(fill="x", pady=(8, 0))
-
-        ttk.Button(btns, text="➕ Thêm ảnh", command=self.on_add_image).pack(fill="x", pady=(0, 6))
-        ttk.Button(btns, text="⟳ Xoay 90°", command=lambda: self.on_rotate_selected_image(90)).pack(fill="x", pady=(0, 6))
-        ttk.Button(btns, text="➖ Xóa ảnh đã chọn", command=self.on_remove_selected_thumbnail).pack(fill="x")
+        self.thumb_canvas.bind("<Configure>", _on_thumb_canvas_configure)
 
     def _build_actions_section(self, parent) -> None:
         actions = ttk.Frame(parent)
@@ -491,21 +520,18 @@ class MainWindow(
         return
 
     def _toggle_search_options_popup(self) -> None:
-        if self._search_opts_popup and self._search_opts_popup.winfo_exists():
-            self._close_search_options_popup()
-            return
         self._open_search_options_popup()
 
-    def _open_search_options_popup(self) -> None:
+    def _open_search_options_popup(self) -> Optional[bool]:
         if self._search_opts_popup and self._search_opts_popup.winfo_exists():
-            return
+            return None
 
         popup = tk.Toplevel(self.root)
-        popup.withdraw()
-        popup.overrideredirect(True)
         popup.transient(self.root)
+        popup.title("Tùy chọn xuất")
+        popup.resizable(False, False)
 
-        frame = ttk.Frame(popup, padding=8, relief="solid", borderwidth=1)
+        frame = ttk.Frame(popup, padding=12)
         frame.pack(fill="both", expand=True)
 
         ttk.Checkbutton(
@@ -520,29 +546,44 @@ class MainWindow(
         ).pack(anchor="w", pady=(4, 0))
         ttk.Checkbutton(
             frame,
-            text="Giữ thứ tự ảnh gốc",
+            text="Giữ đúng thứ tự ảnh trong CSDL",
             variable=self.var_export_images_in_ui_order,
         ).pack(anchor="w", pady=(4, 0))
 
-        popup.update_idletasks()
-        x = self.btn_search_images_opts.winfo_rootx()
-        y = self.btn_search_images_opts.winfo_rooty() + self.btn_search_images_opts.winfo_height() + 2
-        popup.geometry(f"+{x}+{y}")
-        popup.deiconify()
-        popup.lift()
-        popup.focus_force()
-        popup.bind("<Escape>", lambda _e: self._close_search_options_popup())
+        btn_row = ttk.Frame(frame)
+        btn_row.pack(fill="x", pady=(10, 0))
+        btn_row.columnconfigure(0, weight=1)
+
+        result = {"ok": False}
+
+        def _on_ok() -> None:
+            result["ok"] = True
+            self._close_search_options_popup()
+
+        def _on_cancel() -> None:
+            result["ok"] = False
+            self._close_search_options_popup()
+
+        ttk.Button(btn_row, text="OK", command=_on_ok).grid(row=0, column=1, sticky="e")
+        ttk.Button(btn_row, text="Hủy", command=_on_cancel).grid(row=0, column=2, sticky="e", padx=(6, 0))
+
+        popup.protocol("WM_DELETE_WINDOW", _on_cancel)
 
         self._search_opts_popup = popup
-        self._search_opts_root_bind_id = self.root.bind("<Button-1>", self._on_root_click_search_options, add="+")
+        popup.update_idletasks()
+        try:
+            # Center on root
+            x = self.root.winfo_rootx() + int(self.root.winfo_width() / 2) - int(popup.winfo_width() / 2)
+            y = self.root.winfo_rooty() + int(self.root.winfo_height() / 2) - int(popup.winfo_height() / 2)
+            popup.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        popup.grab_set()
+        popup.focus_force()
+        self.root.wait_window(popup)
+        return bool(result["ok"])
 
     def _close_search_options_popup(self) -> None:
-        if self._search_opts_root_bind_id:
-            try:
-                self.root.unbind("<Button-1>", self._search_opts_root_bind_id)
-            except Exception:
-                pass
-            self._search_opts_root_bind_id = None
         if self._search_opts_popup and self._search_opts_popup.winfo_exists():
             try:
                 self._search_opts_popup.destroy()
@@ -558,17 +599,6 @@ class MainWindow(
                 return True
             cur = getattr(cur, "master", None)
         return False
-
-    def _on_root_click_search_options(self, event) -> None:
-        popup = self._search_opts_popup
-        if not popup or not popup.winfo_exists():
-            return
-        widget = event.widget
-        if self._is_descendant_widget(widget, popup):
-            return
-        if self._is_descendant_widget(widget, self.btn_search_images_opts):
-            return
-        self._close_search_options_popup()
 
     def _run_bg(self, title: str, work: Callable[[], None]) -> None:
         def runner():
@@ -587,6 +617,67 @@ class MainWindow(
                 _safe_ui(self.root, lambda msg=err_text: messagebox.showerror("Lỗi", msg))
 
         threading.Thread(target=runner, daemon=True).start()
+
+    def _show_missing_codes(self, missing_codes: list[str]) -> None:
+        if not missing_codes:
+            return
+
+        popup = tk.Toplevel(self.root)
+        popup.title("Các mã không tìm thấy")
+        popup.transient(self.root)
+        popup.resizable(True, True)
+
+        frame = ttk.Frame(popup, padding=12)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="Các mã không tìm thấy trong CSDL").pack(anchor="w")
+
+        list_frame = ttk.Frame(frame)
+        list_frame.pack(fill="both", expand=True, pady=(8, 0))
+        list_frame.rowconfigure(0, weight=1)
+        list_frame.columnconfigure(0, weight=1)
+
+        lb = tk.Listbox(list_frame, height=12)
+        sb = ttk.Scrollbar(list_frame, orient="vertical", command=lb.yview)
+        lb.configure(yscrollcommand=sb.set)
+
+        lb.grid(row=0, column=0, sticky="nsew")
+        sb.grid(row=0, column=1, sticky="ns")
+
+        for code in missing_codes:
+            lb.insert("end", str(code))
+
+        btn_row = ttk.Frame(frame)
+        btn_row.pack(fill="x", pady=(10, 0))
+        btn_row.columnconfigure(0, weight=1)
+        def _copy_all() -> None:
+            try:
+                popup.clipboard_clear()
+                popup.clipboard_append("\n".join([str(x) for x in missing_codes]))
+            except Exception:
+                pass
+
+        ttk.Button(btn_row, text="Sao chép tất cả các mã thiếu", command=_copy_all).grid(row=0, column=1, sticky="e")
+        ttk.Button(btn_row, text="Đóng", command=popup.destroy).grid(row=0, column=2, sticky="e", padx=(6, 0))
+
+        popup.update_idletasks()
+        try:
+            x = self.root.winfo_rootx() + int(self.root.winfo_width() / 2) - int(popup.winfo_width() / 2)
+            y = self.root.winfo_rooty() + int(self.root.winfo_height() / 2) - int(popup.winfo_height() / 2)
+            popup.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+
+    def _prompt_open_excel(self, xlsx_path: str) -> None:
+        if not xlsx_path:
+            return
+        try:
+            try:
+                os.startfile(xlsx_path)
+            except Exception as e:
+                messagebox.showwarning("Không mở được file", f"Không thể mở file Excel:\n{e}")
+        except Exception:
+            return
 
     # -----------------
     # Actions
@@ -819,6 +910,36 @@ class MainWindow(
 
         def work():
             from openpyxl import load_workbook
+            apply_all_choice: Optional[bool] = None
+            decision_by_code: dict[str, bool] = {}
+
+            def should_update_existing(code: str) -> bool:
+                nonlocal apply_all_choice
+                code_key = str(code or "").strip()
+                if not code_key:
+                    return False
+                if code_key in decision_by_code:
+                    return bool(decision_by_code[code_key])
+                if apply_all_choice is not None:
+                    decision_by_code[code_key] = bool(apply_all_choice)
+                    return bool(apply_all_choice)
+
+                done = threading.Event()
+                result: dict[str, bool] = {"update": False, "apply_all": False}
+
+                def ask_on_ui_thread():
+                    update, apply_all = self._ask_update_existing_item_dialog(code_key)
+                    result["update"] = bool(update)
+                    result["apply_all"] = bool(apply_all)
+                    done.set()
+
+                _safe_ui(self.root, ask_on_ui_thread)
+                done.wait()
+                if result["apply_all"]:
+                    apply_all_choice = result["update"]
+                decision_by_code[code_key] = result["update"]
+                return bool(result["update"])
+
             # 1) read excel (all sheets) -> {excel_code: (vi, en)}
             mapping: dict[str, tuple[str, str]] = {}
             wb = load_workbook(xlsx_path)
@@ -971,6 +1092,8 @@ class MainWindow(
             missing_codes: list[str] = []
             images_updated = 0
             images_missing = 0
+            skipped_existing = 0
+            created_new = 0
             i = 0
 
             # 4) update DB (description + images) using one connection
@@ -988,6 +1111,9 @@ class MainWindow(
                         code_to_update = db_index.get(_normalize_code_soft(excel_code_str), "")
 
                     if code_to_update:
+                        if not should_update_existing(code_to_update):
+                            skipped_existing += 1
+                            continue
                         desc_vi, desc_en = desc_pair
                         cur = conn.execute(
                             "UPDATE items SET description_excel=?, description_vietnames_from_excel=? WHERE code=?",
@@ -997,12 +1123,54 @@ class MainWindow(
                             updated += 1
                         else:
                             missing += 1
-                            if len(missing_codes) < 30:
-                                missing_codes.append(excel_code_str)
+                        missing_codes.append(excel_code_str)
                     else:
-                        missing += 1
-                        if len(missing_codes) < 30:
-                            missing_codes.append(excel_code_str)
+                        # Not found in DB: create a new item from Excel fields.
+                        desc_vi, desc_en = desc_pair
+                        conn.execute(
+                            """
+                            INSERT INTO items(
+                                code,
+                                description,
+                                description_excel,
+                                description_vietnames_from_excel,
+                                pdf_path,
+                                page,
+                                validated,
+                                validated_at,
+                                category,
+                                author,
+                                dimension,
+                                small_description,
+                                shape,
+                                blade_tip,
+                                surface_treatment,
+                                material
+                            )
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                            """,
+                            (
+                                excel_code_str,
+                                "",
+                                str(desc_en).strip(),
+                                str(desc_vi).strip(),
+                                "",
+                                None,
+                                0,
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                            ),
+                        )
+                        db_code_set.add(excel_code_str)
+                        decision_by_code[excel_code_str] = True
+                        created_new += 1
 
                     # progress update (every 25 rows)
                     if i % 25 == 0:
@@ -1032,7 +1200,53 @@ class MainWindow(
                         code_to_update = db_index.get(_normalize_code_soft(excel_code_str), "")
 
                     if not code_to_update:
-                        images_missing += 1
+                        # No matching item yet: create a minimal new item for this code.
+                        conn.execute(
+                            """
+                            INSERT INTO items(
+                                code,
+                                description,
+                                description_excel,
+                                description_vietnames_from_excel,
+                                pdf_path,
+                                page,
+                                validated,
+                                validated_at,
+                                category,
+                                author,
+                                dimension,
+                                small_description,
+                                shape,
+                                blade_tip,
+                                surface_treatment,
+                                material
+                            )
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                            """,
+                            (
+                                excel_code_str,
+                                "",
+                                "",
+                                "",
+                                "",
+                                None,
+                                0,
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                            ),
+                        )
+                        db_code_set.add(excel_code_str)
+                        created_new += 1
+                        code_to_update = excel_code_str
+                        decision_by_code[code_to_update] = True
+                    if not should_update_existing(code_to_update):
                         continue
 
                     row = conn.execute("SELECT id FROM items WHERE code=?", (code_to_update,)).fetchone()
@@ -1076,17 +1290,19 @@ class MainWindow(
             # 5) refresh UI and show summary
             _safe_ui(self.root, self.refresh_items)
             _safe_ui(self.root, lambda: self._set_status(
-                f"✅ Nhập Excel xong | đã cập nhật={updated} | thiếu={missing} | ảnh={images_updated}"
+                f"✅ Nhập Excel xong | tạo mới={created_new} | đã cập nhật={updated} | bỏ qua={skipped_existing} | thiếu={missing} | ảnh={images_updated}"
             ))
             _safe_ui(
                 self.root,
                 lambda: messagebox.showinfo(
                     "Nhập Excel xong",
-                    "Số dòng đọc: {total}\nĐã cập nhật: {updated}\nMã thiếu: {missing}\n"
+                    "Số dòng đọc: {total}\nTạo mới: {created_new}\nĐã cập nhật: {updated}\nBỏ qua mã đã tồn tại: {skipped_existing}\nMã thiếu: {missing}\n"
                     "Ảnh đã gắn: {images_updated}\nẢnh thiếu: {images_missing}\n"
                     "Ảnh tìm thấy trong file: {image_rows_total}".format(
                         total=total,
+                        created_new=created_new,
                         updated=updated,
+                        skipped_existing=skipped_existing,
                         missing=missing,
                         images_updated=images_updated,
                         images_missing=images_missing,
@@ -1095,14 +1311,7 @@ class MainWindow(
                 ),
             )
             if missing_codes:
-                _safe_ui(
-                    self.root,
-                    lambda: messagebox.showwarning(
-                        "Mã thiếu (mẫu)",
-                        "Một số mã Excel không khớp với CSDL.\n\n"
-                        f"Mẫu (tối đa 30):\n" + "\n".join(missing_codes),
-                    ),
-                )
+                _safe_ui(self.root, lambda: self._show_missing_codes(missing_codes))
 
         self._run_bg("⏳ Đang cập nhật mô tả và ảnh từ Excel...", work)
 
@@ -1114,7 +1323,6 @@ class MainWindow(
         if not self.state.db:
             messagebox.showwarning("Thiếu CSDL", "Vui lòng tạo/tải CSDL trước (từ PDF).")
             return
-
         xlsx_path = filedialog.askopenfilename(
             title="Chọn file Excel",
             filetypes=[("Tệp Excel", "*.xlsx *.xls"), ("Tất cả tệp", "*.*")],
@@ -1122,6 +1330,9 @@ class MainWindow(
         if not xlsx_path:
             return
         xlsx_path = str(xlsx_path)
+        ok = self._open_search_options_popup()
+        if ok is False:
+            return
 
         def work():
             from openpyxl import load_workbook
@@ -1243,40 +1454,45 @@ class MainWindow(
                     matched += 1
                 else:
                     missing += 1
-                    if len(missing_codes) < 30:
-                        missing_codes.append(excel_code_str)
+                    missing_codes.append(excel_code_str)
 
-                desc_parts: list[str] = []
-                vn_text = ""
+                desc_en_text = ""
+                desc_vi_text = ""
                 if it:
                     if include_desc_en and getattr(it, "description_excel", ""):
-                        desc_parts.append(str(it.description_excel or "").strip())
+                        desc_en_text = str(it.description_excel or "").strip()
                     if include_desc_vi and getattr(it, "description_vietnames_from_excel", ""):
-                        vn_text = str(it.description_vietnames_from_excel or "").strip()
-                    if include_desc_en and not desc_parts and getattr(it, "description", ""):
-                        desc_parts.append(str(it.description or "").strip())
-                desc_text = "\n".join([p for p in desc_parts if p])
-                # If only VI is requested, put VI directly into Description (no extra row).
-                if include_desc_vi and not include_desc_en and not desc_text and vn_text:
-                    desc_text = vn_text
-                    vn_text = ""
+                        desc_vi_text = str(it.description_vietnames_from_excel or "").strip()
+                    if include_desc_en and not desc_en_text and getattr(it, "description", ""):
+                        desc_en_text = str(it.description or "").strip()
+
+                # Decide row ordering: if both EN+VI, show VI above and EN below.
+                row1_desc = ""
+                row2_desc = ""
+                if include_desc_en and include_desc_vi:
+                    row1_desc = desc_vi_text
+                    row2_desc = desc_en_text
+                elif include_desc_vi:
+                    row1_desc = desc_vi_text
+                elif include_desc_en:
+                    row1_desc = desc_en_text
 
                 # data row
                 output_ws.cell(row=out_row, column=1, value=idx)
                 output_ws.cell(row=out_row, column=2, value=excel_code_str)
-                output_ws.cell(row=out_row, column=3, value=desc_text)
+                output_ws.cell(row=out_row, column=3, value=row1_desc)
                 output_ws.cell(row=out_row, column=4, value=qty_val)
-                if include_desc_en and desc_text:
-                    line_count = max(1, str(desc_text).count("\n") + 1)
+                if row1_desc:
+                    line_count = max(1, str(row1_desc).count("\n") + 1)
                     output_ws.row_dimensions[out_row].height = max(15, min(80, 15 * line_count))
 
                 extra_desc_rows = 0
-                if include_desc_vi and vn_text:
+                if row2_desc:
                     extra_desc_rows = 1
                     vn_row = out_row + 1
-                    output_ws.cell(row=vn_row, column=3, value=vn_text)
-                    # Keep VN row compact but readable
-                    line_count = max(1, str(vn_text).count("\n") + 1)
+                    output_ws.cell(row=vn_row, column=3, value=row2_desc)
+                    # Keep extra description row compact but readable
+                    line_count = max(1, str(row2_desc).count("\n") + 1)
                     output_ws.row_dimensions[vn_row].height = max(15, min(60, 15 * line_count))
 
                 # image row
@@ -1388,23 +1604,23 @@ class MainWindow(
                     ),
                 )
 
-            _safe_ui(self.root, lambda: messagebox.showinfo(
-                "Xuất file xong",
-                f"Mã khớp: {matched}/{total}\nDòng có ảnh: {updated}/{total}\nĐã cập nhật vào sheet 2.",
-            ))
+            def _after_export_dialog():
+                msg = (
+                    f"Sản phẩm khớp: {matched}/{total}\n"
+                    f"Tìm thấy hình ảnh của: {updated}/{total}\n"
+                    f"Đã cập nhật vào Sheet 2 của file Excel.\n\n"
+                    "Bạn có muốn mở file Excel vừa xuất không?"
+                )
+                if messagebox.askyesno("Xuất dữ liệu hoàn tất", msg):
+                    self._prompt_open_excel(xlsx_path)
+
+            _safe_ui(self.root, _after_export_dialog)
             _safe_ui(
                 self.root,
                 lambda: self._set_status(f"✅ Xuất ảnh ra Excel: khớp {matched}/{total}, ảnh {updated}/{total}")
             )
             if missing_codes:
-                _safe_ui(
-                    self.root,
-                    lambda: messagebox.showwarning(
-                        "Mã thiếu (mẫu)",
-                        "Một số mã Excel không khớp với CSDL.\n\n"
-                        f"Mẫu (tối đa 30):\n" + "\n".join(missing_codes),
-                    ),
-                )
+                _safe_ui(self.root, lambda: self._show_missing_codes(missing_codes))
 
         self._run_bg("⏳ Extracting images by code...", work)
 

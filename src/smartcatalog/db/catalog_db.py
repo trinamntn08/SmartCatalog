@@ -423,7 +423,8 @@ class CatalogDB:
                 """,
                 (pdf_db, int(page), asset_db, x0, y0, x1, y1, source, sha256),
             )
-            conn.commit()
+            if owns:
+                conn.commit()
             return int(cur.lastrowid)
         finally:
             if owns:
@@ -487,7 +488,8 @@ class CatalogDB:
                 """,
                 (int(item_id), int(asset_id), match_method, score, 1 if verified else 0, 1 if is_primary else 0),
             )
-            conn.commit()
+            if owns:
+                conn.commit()
         finally:
             if owns:
                 conn.close()
@@ -613,7 +615,8 @@ class CatalogDB:
 
         try:
             conn.execute("DELETE FROM item_asset_links WHERE item_id=?", (item_id,))
-            conn.commit()
+            if owns:
+                conn.commit()
         finally:
             if owns:
                 conn.close()
@@ -645,6 +648,87 @@ class CatalogDB:
                 (item_id, asset_id),
             )
             conn.commit()
+        finally:
+            if owns:
+                conn.close()
+
+    def reorder_asset_links_for_item_by_paths(
+        self,
+        item_id: int,
+        ordered_paths: List[str],
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> bool:
+        """
+        Reorder item_asset_links for an item to match ordered_paths.
+        Keeps link metadata (match_method, score, verified, is_primary).
+        Returns True when reorder was applied, False when no links exist.
+        """
+        owns = conn is None
+        if conn is None:
+            conn = self.connect()
+            self._ensure_schema(conn)
+            self._ensure_columns(conn)
+
+        try:
+            rows = conn.execute(
+                """
+                SELECT l.asset_id, l.match_method, l.score, l.verified, l.is_primary, a.asset_path
+                FROM item_asset_links l
+                JOIN assets a ON a.id = l.asset_id
+                WHERE l.item_id=?
+                ORDER BY l.is_primary DESC, l.id ASC
+                """,
+                (int(item_id),),
+            ).fetchall()
+            if not rows:
+                return False
+
+            # Support duplicate paths by storing a queue per normalized path.
+            buckets: dict[str, list[sqlite3.Row]] = {}
+            for r in rows:
+                key = str(self.from_db_path(str(r["asset_path"] or "")))
+                buckets.setdefault(key, []).append(r)
+
+            ordered_rows: list[sqlite3.Row] = []
+            used_asset_ids: set[int] = set()
+            for p in ordered_paths or []:
+                key = str(p or "")
+                q = buckets.get(key)
+                if q:
+                    picked = q.pop(0)
+                    aid = int(picked["asset_id"])
+                    if aid not in used_asset_ids:
+                        used_asset_ids.add(aid)
+                        ordered_rows.append(picked)
+
+            # Append remaining links not referenced in ordered_paths.
+            for r in rows:
+                aid = int(r["asset_id"])
+                if aid not in used_asset_ids:
+                    used_asset_ids.add(aid)
+                    ordered_rows.append(r)
+
+            if not ordered_rows:
+                return False
+
+            conn.execute("DELETE FROM item_asset_links WHERE item_id=?", (int(item_id),))
+            for r in ordered_rows:
+                conn.execute(
+                    """
+                    INSERT INTO item_asset_links(item_id, asset_id, match_method, score, verified, is_primary)
+                    VALUES(?,?,?,?,?,?)
+                    """,
+                    (
+                        int(item_id),
+                        int(r["asset_id"]),
+                        str(r["match_method"] or "manual"),
+                        r["score"],
+                        int(r["verified"] or 0),
+                        int(r["is_primary"] or 0),
+                    ),
+                )
+            conn.commit()
+            return True
         finally:
             if owns:
                 conn.close()

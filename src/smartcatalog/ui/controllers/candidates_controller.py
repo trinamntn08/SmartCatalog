@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import threading
 import hashlib
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -44,9 +45,6 @@ class CandidatesControllerMixin:
 
         topbar = ttk.Frame(wrapper)
         topbar.pack(fill="x", pady=(0, 6))
-
-        self._cand_selected_label = ttk.Label(topbar, text="Đã chọn: (chưa có)")
-        self._cand_selected_label.pack(side="left")
 
         btn_col = ttk.Frame(topbar)
         btn_col.pack(side="right")
@@ -323,8 +321,6 @@ class CandidatesControllerMixin:
 
     def _on_select_page_image(self, img: PageImage) -> None:
         self._cand_selected_key = (img.page_index, img.xref)
-        if hasattr(self, "_cand_selected_label"):
-            self._cand_selected_label.configure(text=f"Đã chọn: trang {img.page_index + 1} xref {img.xref}")
         # reflow to show selection highlight
         width = int(self._cand_canvas.winfo_width() or 600)
         self._cand_reflow(width)
@@ -428,11 +424,12 @@ class CandidatesControllerMixin:
         messagebox.showwarning("Chưa chọn ảnh", "Ảnh đã chọn không còn tồn tại.")
 
     # ----------------------------
-    # Thêm to CSDL (SAVE asset + INSERT asset row + LINK to selected item)
+    # Add page image to draft (persist to DB only when user clicks "Lưu")
     # ----------------------------
     def _on_add_page_image_to_db(self, img: PageImage) -> None:
         """
-        Save bytes to assets folder, insert asset, then link it to currently selected item.
+        Save bytes to assets folder and append path to selected item's draft images.
+        DB persistence is deferred to save action.
         """
         try:
             if not getattr(self, "state", None) or not self.state.db:
@@ -464,34 +461,21 @@ class CandidatesControllerMixin:
             if not path.exists():
                 path.write_bytes(img.bytes_)
 
-            asset_id = self.state.db.insert_asset(
-                file_path=str(path),
-                page=img.page_index + 1,
-                xref=img.xref,
-                width=img.width,
-                height=img.height,
-                source="page_extract",
-                pdf_path=pdf_path,
-            )
+            path_str = str(path)
+            sel.images = list(getattr(sel, "images", []) or [])
+            if path_str not in sel.images:
+                sel.images.append(path_str)
 
-            self.state.db.link_asset_to_item(
-                item_id=int(item_id),
-                asset_id=int(asset_id),
-                match_method="manual",
-                score=None,
-                verified=True,
-                is_primary=False,
-            )
+            source_map = dict(getattr(self, "_last_rendered_source_map", None) or {})
+            nkey = os.path.normcase(os.path.normpath(path_str))
+            source_map[nkey] = "page_extract"
 
-            # refresh UI selection without losing current item
-            try:
-                new_imgs = self.state.db.list_asset_paths_for_item(int(item_id))
-                if getattr(self, "_selected", None) is not None:
-                    self._selected.images = new_imgs
-            except Exception:
-                pass
-            if hasattr(self, "_reload_selected_into_form"):
-                self._reload_selected_into_form()
+            if hasattr(self, "_render_thumbnails"):
+                self._render_thumbnails(sel.images or [], source_map=source_map)
+            if hasattr(self, "_on_select_thumbnail"):
+                self._on_select_thumbnail(path_str)
+            if hasattr(self, "_set_status"):
+                self._set_status("✅ Đã thêm ảnh từ trang (chưa lưu)")
 
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Thêm thất bại:\n{e}")
+            messagebox.showerror("Lỗi", f"Thêm ảnh thất bại:\n{e}")

@@ -104,6 +104,162 @@ class ItemFormControllerMixin:
             f"IMAGES ({len(it.images or [])}):\n{img_lines}\n\n"
             f"NGUỒN ẢNH:\n{src_lines}"
         )
+        self._capture_selected_snapshot()
+
+    def _capture_selected_snapshot(self) -> None:
+        it = getattr(self, "_selected", None)
+        if not it:
+            self._selected_snapshot = None
+            return
+        self._selected_snapshot = {
+            "id": int(getattr(it, "id", 0) or 0),
+            "code": str(getattr(it, "code", "") or ""),
+            "page": getattr(it, "page", None),
+            "category": str(getattr(it, "category", "") or ""),
+            "author": str(getattr(it, "author", "") or ""),
+            "dimension": str(getattr(it, "dimension", "") or ""),
+            "small_description": str(getattr(it, "small_description", "") or ""),
+            "shape": str(getattr(it, "shape", "") or ""),
+            "blade_tip": str(getattr(it, "blade_tip", "") or ""),
+            "surface_treatment": str(getattr(it, "surface_treatment", "") or ""),
+            "material": str(getattr(it, "material", "") or ""),
+            "description_excel": str(getattr(it, "description_excel", "") or ""),
+            "description_vietnames_from_excel": str(getattr(it, "description_vietnames_from_excel", "") or ""),
+            "validated": bool(getattr(it, "validated", False)),
+            "validated_at": str(getattr(it, "validated_at", "") or ""),
+            "images": list(getattr(it, "images", []) or []),
+        }
+
+    def _restore_selected_from_snapshot(self) -> None:
+        snap = getattr(self, "_selected_snapshot", None)
+        it = getattr(self, "_selected", None)
+        if not it or not snap:
+            return
+        it.code = snap["code"]
+        it.page = snap["page"]
+        it.category = snap["category"]
+        it.author = snap["author"]
+        it.dimension = snap["dimension"]
+        it.small_description = snap["small_description"]
+        it.shape = snap["shape"]
+        it.blade_tip = snap["blade_tip"]
+        it.surface_treatment = snap["surface_treatment"]
+        it.material = snap["material"]
+        it.description_excel = snap["description_excel"]
+        it.description_vietnames_from_excel = snap["description_vietnames_from_excel"]
+        it.validated = snap["validated"]
+        it.validated_at = snap["validated_at"]
+        it.images = list(snap["images"])
+        self._reload_selected_into_form()
+
+    def _is_selected_dirty(self) -> bool:
+        it = getattr(self, "_selected", None)
+        snap = getattr(self, "_selected_snapshot", None)
+        if not it or not snap:
+            return False
+
+        code = (self.var_code.get() or "").strip()
+        page_str = (self.var_page.get() or "").strip()
+        page_val = None
+        if page_str:
+            try:
+                page_val = int(page_str)
+            except ValueError:
+                page_val = page_str
+
+        current = {
+            "code": code,
+            "page": page_val,
+            "category": (self.var_category.get() or "").strip(),
+            "author": (self.var_author.get() or "").strip(),
+            "dimension": (self.var_dimension.get() or "").strip(),
+            "small_description": (self.var_small_description.get() or "").strip(),
+            "shape": (self.var_shape.get() or "").strip(),
+            "blade_tip": (self.var_blade_tip.get() or "").strip(),
+            "surface_treatment": (self.var_surface_treatment.get() or "").strip(),
+            "material": (self.var_material.get() or "").strip(),
+            "description_excel": (self.description_excel_text.get("1.0", "end-1c") or "").strip(),
+            "description_vietnames_from_excel": (
+                self.description_vietnames_from_excel_text.get("1.0", "end-1c") or ""
+            ).strip(),
+            "validated": bool(self.var_validated.get()),
+            "images": list(getattr(it, "images", []) or []),
+        }
+        original = {
+            "code": snap["code"],
+            "page": snap["page"],
+            "category": snap["category"],
+            "author": snap["author"],
+            "dimension": snap["dimension"],
+            "small_description": snap["small_description"],
+            "shape": snap["shape"],
+            "blade_tip": snap["blade_tip"],
+            "surface_treatment": snap["surface_treatment"],
+            "material": snap["material"],
+            "description_excel": snap["description_excel"],
+            "description_vietnames_from_excel": snap["description_vietnames_from_excel"],
+            "validated": snap["validated"],
+            "images": list(snap["images"]),
+        }
+        return current != original
+
+    def _handle_unsaved_before_switch(self) -> bool:
+        if not self._is_selected_dirty():
+            return True
+        ans = messagebox.askyesnocancel(
+            "Thay đổi chưa lưu",
+            "Bạn có thay đổi chưa lưu.\nBạn có muốn lưu trước khi chuyển sản phẩm không?",
+        )
+        if ans is None:
+            return False
+        if ans:
+            return bool(self.on_save_item())
+        self._restore_selected_from_snapshot()
+        return True
+
+    def _persist_item_images_to_db(self, item_id: int) -> None:
+        it = getattr(self, "_selected", None)
+        if not it or not getattr(self.state, "db", None):
+            return
+
+        db = self.state.db
+        page = int(getattr(it, "page", 0) or 0)
+        pdf_path = str(getattr(it, "pdf_path", "") or "")
+        if not pdf_path and getattr(self.state, "catalog_pdf_path", None):
+            pdf_path = str(self.state.catalog_pdf_path)
+
+        source_map = dict(getattr(self, "_last_rendered_source_map", None) or {})
+
+        conn = db.connect()
+        try:
+            db.clear_asset_links_for_item(int(item_id), conn=conn)
+            for idx, path in enumerate(list(getattr(it, "images", []) or [])):
+                nkey = os.path.normcase(os.path.normpath(str(path)))
+                source = str(source_map.get(nkey, "") or "add").strip().lower() or "add"
+                try:
+                    asset_id = db.upsert_asset(
+                        pdf_path=pdf_path,
+                        page=page,
+                        asset_path=str(path),
+                        bbox=None,
+                        source=source,
+                        sha256="",
+                        conn=conn,
+                    )
+                    db.link_asset_to_item(
+                        item_id=int(item_id),
+                        asset_id=int(asset_id),
+                        match_method=("excel" if source == "excel" else "manual"),
+                        score=None,
+                        verified=True,
+                        is_primary=(idx == 0),
+                        conn=conn,
+                    )
+                except Exception:
+                    continue
+            conn.commit()
+        finally:
+            conn.close()
 
     def _persist_selected(self) -> None:
         if not getattr(self, "_selected", None) or not getattr(self.state, "db", None):
@@ -130,16 +286,16 @@ class ItemFormControllerMixin:
             image_paths=it.images or [],
         )
 
-    def on_save_item(self) -> None:
+    def on_save_item(self) -> bool:
         it = getattr(self, "_selected", None)
         if not it:
             messagebox.showwarning("Chưa chọn", "Vui lòng chọn sản phẩm ở danh sách bên trái.")
-            return
+            return False
 
         code = (self.var_code.get() or "").strip()
         if not code:
             messagebox.showerror("Không hợp lệ", "Mã không được để trống.")
-            return
+            return False
 
         page_str = (self.var_page.get() or "").strip()
         page_val: Optional[int] = None
@@ -148,7 +304,7 @@ class ItemFormControllerMixin:
                 page_val = int(page_str)
             except ValueError:
                 messagebox.showerror("Không hợp lệ", "Trang phải là số nguyên.")
-                return
+                return False
 
         # Update selected item in memory
         it.code = code
@@ -179,7 +335,8 @@ class ItemFormControllerMixin:
 
         # Persist to DB
         if getattr(self.state, "db", None):
-            self.state.db.upsert_by_code(
+            old_item_id = int(getattr(it, "id", 0) or 0)
+            item_id = self.state.db.upsert_by_code(
                 code=it.code,
                 page=it.page,
                 category=it.category,
@@ -198,46 +355,63 @@ class ItemFormControllerMixin:
                 validated_at=str(getattr(it, "validated_at", "") or ""),
                 image_paths=it.images or [],
             )
-            self.refresh_items()
+            self._persist_item_images_to_db(int(item_id))
+            new_item_id = int(item_id)
+            it.id = new_item_id
+
+            # Fast path: avoid full list reload for normal save of current item.
+            # Fallback to full refresh only when item identity changed unexpectedly.
+            if new_item_id == old_item_id:
+                try:
+                    if hasattr(self, "items_tree") and self.items_tree.exists(str(new_item_id)):
+                        validated_at = ""
+                        if bool(getattr(it, "validated", False)):
+                            fmt = getattr(self, "_format_validated_at_vi", None)
+                            raw = str(getattr(it, "validated_at", "") or "")
+                            validated_at = fmt(raw) if callable(fmt) else raw
+                        self.items_tree.item(
+                            str(new_item_id),
+                            values=(
+                                it.id,
+                                it.code,
+                                "" if it.page is None else it.page,
+                                getattr(it, "category", ""),
+                                getattr(it, "author", ""),
+                                getattr(it, "shape", ""),
+                                getattr(it, "blade_tip", ""),
+                                getattr(it, "dimension", ""),
+                                getattr(it, "surface_treatment", ""),
+                                getattr(it, "material", ""),
+                                validated_at,
+                            ),
+                        )
+                except Exception:
+                    pass
+            else:
+                self.refresh_items()
+                self._selected = next((x for x in self.state.items_cache if int(x.id) == new_item_id), it)
+                self._reload_selected_into_form()
+
+            # Mark current form/item state as clean without forcing a full reload.
+            try:
+                self._capture_selected_snapshot()
+            except Exception:
+                pass
 
         self._set_status(f"✅ Đã lưu sản phẩm {it.id} ({it.code})")
+        return True
 
     def on_add_item(self) -> None:
         if not getattr(self.state, "db", None):
             messagebox.showwarning("Thiếu CSDL", "Vui lòng tạo/tải CSDL trước (từ PDF).")
             return
 
-        code = (self.var_code.get() or "").strip()
-        if not code:
-            messagebox.showerror("Không hợp lệ", "Mã không được để trống.")
-            return
-
-        existing = self.state.db.get_item_by_code(code)
-        if existing is not None:
-            messagebox.showerror("Đã tồn tại", f"Mã '{code}' đã có. Vui lòng dùng 'Lưu' để chỉnh sửa.")
-            return
-
-        page_str = (self.var_page.get() or "").strip()
-        page_val: Optional[int] = None
-        if page_str:
-            try:
-                page_val = int(page_str)
-            except ValueError:
-                messagebox.showerror("Không hợp lệ", "Trang phải là số nguyên.")
+        try:
+            handler = getattr(self, "_handle_unsaved_before_switch", None)
+            if callable(handler) and not bool(handler()):
                 return
-
-        category = (self.var_category.get() or "").strip()
-        author = (self.var_author.get() or "").strip()
-        dimension = (self.var_dimension.get() or "").strip()
-        small_description = (self.var_small_description.get() or "").strip()
-        shape = (self.var_shape.get() or "").strip()
-        blade_tip = (self.var_blade_tip.get() or "").strip()
-        surface_treatment = (self.var_surface_treatment.get() or "").strip()
-        material = (self.var_material.get() or "").strip()
-        desc_excel = (self.description_excel_text.get("1.0", "end-1c") or "").strip()
-        desc_vi_excel = (self.description_vietnames_from_excel_text.get("1.0", "end-1c") or "").strip()
-        validated = bool(self.var_validated.get())
-        validated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if validated else ""
+        except Exception:
+            return
 
         pdf_path = ""
         try:
@@ -246,43 +420,40 @@ class ItemFormControllerMixin:
         except Exception:
             pdf_path = ""
 
-        item_id = self.state.db.upsert_by_code(
-            code=code,
-            page=page_val,
-            category=category,
-            author=author,
-            dimension=dimension,
-            small_description=small_description,
-            shape=shape,
-            blade_tip=blade_tip,
-            surface_treatment=surface_treatment,
-            material=material,
+        # Create a draft item (not saved yet) and clear all fields.
+        from smartcatalog.state import CatalogItem
+
+        draft = CatalogItem(
+            id=0,
+            code="",
             description="",
-            description_excel=desc_excel,
-            description_vietnames_from_excel=desc_vi_excel,
+            description_excel="",
+            description_vietnames_from_excel="",
             pdf_path=pdf_path,
-            validated=validated,
-            validated_at=validated_at,
-            image_paths=[],
+            page=None,
+            images=[],
+            validated=False,
+            validated_at="",
+            category="",
+            author="",
+            dimension="",
+            small_description="",
+            shape="",
+            blade_tip="",
+            surface_treatment="",
+            material="",
         )
 
-        self.refresh_items()
-
-        # Select the new item in the tree + reload form.
+        self._selected = draft
         try:
-            new_item = next((x for x in self.state.items_cache if x.id == item_id), None)
-            if new_item is None:
-                new_item = self.state.db.get_item_by_code(code)
-            self._selected = new_item
-            if new_item and hasattr(self, "items_tree"):
-                self.items_tree.selection_set(str(new_item.id))
-                self.items_tree.focus(str(new_item.id))
-            self._update_pdf_tools_label()
-            self._reload_selected_into_form()
+            if hasattr(self, "items_tree"):
+                self.items_tree.selection_remove(self.items_tree.selection())
         except Exception:
             pass
 
-        self._set_status(f"✅ Đã thêm sản phẩm {item_id} ({code})")
+        self._update_pdf_tools_label()
+        self._reload_selected_into_form()
+        self._set_status("✅ Đang thêm sản phẩm mới")
 
     def on_delete_item(self) -> None:
         it = getattr(self, "_selected", None)
@@ -338,3 +509,4 @@ class ItemFormControllerMixin:
         self.refresh_items()
         self._update_pdf_tools_label()
         self._set_status(f"✅ Đã xóa sản phẩm {item_id} ({code})")
+

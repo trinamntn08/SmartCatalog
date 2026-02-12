@@ -45,6 +45,7 @@ class ItemsControllerMixin:
 
     def _filter_items(self) -> None:
         q = (self.search_var.get() or "").strip().lower()
+        tokens = [t.strip() for t in q.split(",") if t.strip()]
 
         for row in self.items_tree.get_children():
             self.items_tree.delete(row)
@@ -59,14 +60,16 @@ class ItemsControllerMixin:
                 f"{'✅' if getattr(it, 'validated', False) else ''} {getattr(it, 'validated_at', '')}"
             ).lower()
 
-            if q and q not in text:
+            if tokens and not all(t in text for t in tokens):
                 continue
 
             validated_at = self._format_validated_at_vi(getattr(it, "validated_at", ""))
+            tags = ("match",) if tokens else ()
             self.items_tree.insert(
                 "",
                 "end",
                 iid=str(it.id),
+                tags=tags,
                 values=(
                     it.id,
                     it.code,
@@ -157,6 +160,12 @@ class ItemsControllerMixin:
             )
 
     def _on_select_item(self, _evt=None) -> None:
+        # Ignore one synthetic selection event when we only want to restore
+        # tree highlight after user cancels unsaved-switch prompt.
+        if bool(getattr(self, "_ignore_next_select_event", False)):
+            self._ignore_next_select_event = False
+            return
+
         sel = self.items_tree.selection()
         if not sel:
             return
@@ -167,6 +176,21 @@ class ItemsControllerMixin:
             return
 
         item_id = int(vals[0])
+
+        current = getattr(self, "_selected", None)
+        if current and int(getattr(current, "id", 0) or 0) != item_id:
+            try:
+                handler = getattr(self, "_handle_unsaved_before_switch", None)
+                if callable(handler) and not bool(handler()):
+                    # Restore selection highlight to previously selected row.
+                    prev_id = int(getattr(current, "id", 0) or 0)
+                    if prev_id:
+                        self._ignore_next_select_event = True
+                        self.items_tree.selection_set(str(prev_id))
+                        self.items_tree.focus(str(prev_id))
+                    return
+            except Exception:
+                pass
 
         # Find item object in cache
         it = next((x for x in self.state.items_cache if int(x.id) == item_id), None)
@@ -190,5 +214,32 @@ class ItemsControllerMixin:
                 self._render_candidates_for_page(int(it.page) - 1)
         except Exception:
             pass
+
+    def _on_items_tree_click_before_select(self, event) -> str | None:
+        """
+        Intercept mouse selection before Treeview changes current row:
+        ask about unsaved edits first, then allow/prevent switching.
+        """
+        row_iid = str(self.items_tree.identify_row(int(getattr(event, "y", 0) or 0)) or "").strip()
+        if not row_iid:
+            return None
+
+        try:
+            target_id = int(row_iid)
+        except Exception:
+            return None
+
+        current = getattr(self, "_selected", None)
+        current_id = int(getattr(current, "id", 0) or 0) if current else 0
+        if not current_id or current_id == target_id:
+            return None
+
+        try:
+            handler = getattr(self, "_handle_unsaved_before_switch", None)
+            if callable(handler) and not bool(handler()):
+                return "break"
+        except Exception:
+            return "break"
+        return None
 
         

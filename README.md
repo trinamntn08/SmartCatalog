@@ -24,6 +24,8 @@ To generate into .exe application
 Install auto py to exe in the virtual environment
 pip install auto-py-to-exe
 
+PS C:\\SmartCatalog\\SmartCatalog> .\\venv\\Scripts\\Activate.ps1
+
 Launch it in the virtual environment
 auto-py-to-exe.exe
 

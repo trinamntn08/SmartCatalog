@@ -21,6 +21,7 @@ class ImagesControllerMixin:
     - Click thumbnail -> select + preview + store self._selected_image_path
     - Add image -> saves to assets + links to selected item
     - Remove selected -> unlink asset
+    - Reorder image -> move selected image up/down
 
     Assumes MainWindow provides:
       - self.state (db, catalog_pdf_path, items_cache, selected_item_id)
@@ -37,6 +38,8 @@ class ImagesControllerMixin:
     # Thumbnails rendering
     # ----------------------------
     def _clear_thumbnails(self) -> None:
+        self._hide_thumb_drag_ghost()
+        self._hide_thumb_drop_indicator()
         for w in self.thumb_inner.winfo_children():
             w.destroy()
         self._thumb_refs.clear()
@@ -48,6 +51,7 @@ class ImagesControllerMixin:
     def _render_thumbnails(self, image_paths: list[str], source_map: Optional[dict[str, str]] = None) -> None:
         prev_selected = self._selected_image_path
         self._clear_thumbnails()
+        self._thumb_cells: list[tuple[str, tk.Misc]] = []
         if prev_selected and prev_selected in image_paths:
             self._selected_image_path = prev_selected
 
@@ -101,6 +105,8 @@ class ImagesControllerMixin:
         is_selected = bool(selected_path) and image_path == selected_path
         cell = ttk.Frame(parent, relief=("solid" if is_selected else "flat"), borderwidth=(2 if is_selected else 0))
         cell.grid(row=row, column=col, padx=pad, pady=pad, sticky="nsew")
+        setattr(cell, "_image_path", image_path)
+        self._thumb_cells.append((image_path, cell))
 
         def _badge_text(source: str) -> str:
             s = (source or "").strip().lower()
@@ -129,22 +135,14 @@ class ImagesControllerMixin:
 
         if tk_img is not None:
             self._thumb_refs.append(tk_img)
-
-            btn = ttk.Button(
-                cell,
-                image=tk_img,
-                command=lambda p=image_path: self._on_select_thumbnail(p),
-            )
-            btn.pack()
+            img_widget = ttk.Label(cell, image=tk_img, text="")
+            img_widget.pack()
         else:
-            btn = ttk.Button(
-                cell,
-                text="[Không xem được]",
-                width=14,
-                command=lambda p=image_path: self._on_select_thumbnail(p),
-            )
-            btn.pack()
+            img_widget = ttk.Label(cell, text="[Không xem được]", width=14)
+            img_widget.pack()
+        setattr(img_widget, "_image_path", image_path)
 
+        drag_widgets = [cell, img_widget]
         if badge:
             b = ttk.Label(
                 cell,
@@ -153,6 +151,14 @@ class ImagesControllerMixin:
                 foreground="#555555",
             )
             b.pack(pady=(2, 0))
+            setattr(b, "_image_path", image_path)
+            drag_widgets.append(b)
+
+        # Drag reorder bindings (press-hold-move-release).
+        for w in drag_widgets:
+            w.bind("<ButtonPress-1>", lambda e, p=image_path: self._on_thumb_drag_start(e, p), add="+")
+            w.bind("<B1-Motion>", self._on_thumb_drag_motion, add="+")
+            w.bind("<ButtonRelease-1>", lambda e, p=image_path: self._on_thumb_drag_release(e, p), add="+")
 
 
     def _on_select_thumbnail(self, image_path: str) -> None:
@@ -179,8 +185,9 @@ class ImagesControllerMixin:
         try:
             # Use current label size when available; fallback to a reasonable default.
             self.image_preview_label.update_idletasks()
-            max_w = int(self.image_preview_label.winfo_width() or 240)
-            max_h = int(self.image_preview_label.winfo_height() or 180)
+            preview_host = getattr(self, "image_preview_frame", None) or self.image_preview_label
+            max_w = int(preview_host.winfo_width() or 240)
+            max_h = int(preview_host.winfo_height() or 180)
             max_w = max(80, max_w)
             max_h = max(80, max_h)
 
@@ -290,46 +297,16 @@ class ImagesControllerMixin:
             # Fallback: keep original path
             pass
 
-        if self.state.db:
-            try:
-                sha256 = ""
-                try:
-                    h = hashlib.sha256()
-                    with open(path, "rb") as f:
-                        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                            h.update(chunk)
-                    sha256 = h.hexdigest()
-                except Exception:
-                    sha256 = ""
-
-                asset_id = self.state.db.upsert_asset(
-                    pdf_path=pdf_path,
-                    page=page,
-                    asset_path=path,
-                    bbox=None,
-                    source="add",
-                    sha256=sha256,
-                )
-                self.state.db.link_asset_to_item(
-                    item_id=int(self._selected.id),
-                    asset_id=int(asset_id),
-                    match_method="manual",
-                    score=None,
-                    verified=True,
-                    is_primary=False,
-                )
-                self._selected.images = self.state.db.list_asset_paths_for_item(int(self._selected.id))
-            except Exception:
-                # Fallback: keep legacy in-memory only
-                self._selected.images = list(self._selected.images or [])
-                self._selected.images.append(path)
-        else:
-            self._selected.images = list(self._selected.images or [])
-            self._selected.images.append(path)
-
-        self.refresh_items()
-        self._reload_selected_into_form()
-        self._set_status("✅ Đã thêm ảnh")
+        # Draft-only: keep changes in memory, persist when user clicks "Lưu".
+        self._selected.images = list(self._selected.images or [])
+        self._selected.images.append(path)
+        self._render_thumbnails(
+            self._selected.images or [],
+            source_map=getattr(self, "_last_rendered_source_map", None),
+        )
+        self._selected_image_path = path
+        self._on_select_thumbnail(path)
+        self._set_status("✅ Đã thêm ảnh (chưa lưu)")
 
     def on_remove_selected_thumbnail(self) -> None:
         """
@@ -346,33 +323,17 @@ class ImagesControllerMixin:
             messagebox.showwarning("Chưa chọn ảnh", "Vui lòng chọn ảnh thu nhỏ trước (để xóa).")
             return
 
-        if not self.state.db:
-            messagebox.showwarning("CSDL", "CSDL chưa được khởi tạo.")
-            return
-
-        item_id = int(getattr(self._selected, "id", 0) or 0)
-        if not item_id:
-            messagebox.showwarning("Chưa chọn", "Sản phẩm đã chọn không hợp lệ.")
-            return
-
-        # 1) Unlink in DB
-        removed = self._db_remove_image_from_item(item_id=item_id, img_path=img_path)
-
-        if not removed:
-            messagebox.showinfo("Không tìm thấy", "Liên kết ảnh không còn trong CSDL (có thể đã bị xóa).")
-
-        # 2) Update in-memory list
+        # Draft-only: remove in memory; persist when user clicks "Lưu".
         self._selected.images = [p for p in (self._selected.images or []) if p != img_path]
-
-        # 3) Refresh UI + keep selection highlight (avoid full refresh for speed)
-        try:
-            if hasattr(self, "items_tree"):
-                self.items_tree.selection_set(str(item_id))
-                self.items_tree.focus(str(item_id))
-        except Exception:
-            pass
-        self._reload_selected_into_form()
-        self._set_status("✅ Đã xóa ảnh đã chọn")
+        if self._selected_image_path == img_path:
+            self._selected_image_path = (self._selected.images[0] if self._selected.images else None)
+        self._render_thumbnails(
+            self._selected.images or [],
+            source_map=getattr(self, "_last_rendered_source_map", None),
+        )
+        if self._selected_image_path:
+            self._on_select_thumbnail(self._selected_image_path)
+        self._set_status("✅ Đã xóa ảnh (chưa lưu)")
     def on_rotate_selected_image(self, degrees: int) -> None:
         """
         Rotate selected image on disk and refresh UI.
@@ -409,42 +370,275 @@ class ImagesControllerMixin:
         self._on_select_thumbnail(img_path)
         self._set_status("✅ Đã xoay ảnh")
 
-    def _db_remove_image_from_item(self, *, item_id: int, img_path: str) -> bool:
+    @staticmethod
+    def _extract_thumb_image_path(widget) -> Optional[str]:
+        cur = widget
+        while cur is not None:
+            p = getattr(cur, "_image_path", None)
+            if p:
+                return str(p)
+            cur = getattr(cur, "master", None)
+        return None
+
+    def _on_thumb_drag_start(self, event, image_path: str) -> None:
+        self._hide_thumb_drag_ghost()
+        self._hide_thumb_drop_indicator()
+        self._drag_source_path = str(image_path or "")
+        self._drag_start_xy = (int(getattr(event, "x_root", 0)), int(getattr(event, "y_root", 0)))
+        self._drag_active = False
+        if self._drag_source_path:
+            # Do not re-render thumbnails here; destroying the source widget
+            # during a drag can break subsequent motion/release events.
+            self._selected_image_path = self._drag_source_path
+            self._set_preview_image(self._drag_source_path)
+
+    def _on_thumb_drag_motion(self, event) -> None:
+        src = getattr(self, "_drag_source_path", "")
+        if not src:
+            return
+        x0, y0 = getattr(self, "_drag_start_xy", (0, 0))
+        dx = abs(int(getattr(event, "x_root", 0)) - x0)
+        dy = abs(int(getattr(event, "y_root", 0)) - y0)
+        if dx + dy >= 8:
+            self._drag_active = True
+            if not getattr(self, "_drag_ghost", None):
+                self._show_thumb_drag_ghost(src, int(getattr(event, "x_root", 0)), int(getattr(event, "y_root", 0)))
+            else:
+                self._move_thumb_drag_ghost(int(getattr(event, "x_root", 0)), int(getattr(event, "y_root", 0)))
+            xr = int(getattr(event, "x_root", 0))
+            yr = int(getattr(event, "y_root", 0))
+            if self._is_over_images_panel(xr, yr):
+                info = self._compute_drop_insert_info(xr, yr, list(getattr(self._selected, "images", []) or []))
+                if info:
+                    _idx, x_line, y_top, y_bottom = info
+                    self._show_thumb_drop_indicator(x_line, y_top, max(8, y_bottom - y_top))
+                else:
+                    self._hide_thumb_drop_indicator()
+            else:
+                self._hide_thumb_drop_indicator()
+
+    def _on_thumb_drag_release(self, event, image_path: str) -> None:
+        src = str(getattr(self, "_drag_source_path", "") or "")
+        active = bool(getattr(self, "_drag_active", False))
+        self._drag_source_path = ""
+        self._drag_active = False
+        self._hide_thumb_drag_ghost()
+        self._hide_thumb_drop_indicator()
+        if not src:
+            return
+        if not active:
+            # Normal click: refresh thumbnail selection highlight.
+            self._on_select_thumbnail(src)
+            return
+        if not self._selected:
+            return
+        if not self._is_over_images_panel(int(getattr(event, "x_root", 0)), int(getattr(event, "y_root", 0))):
+            return
+
+        imgs = list(self._selected.images or [])
+        if src not in imgs:
+            return
+        src_idx = imgs.index(src)
+
+        drop_idx = self._compute_drop_insert_index(
+            int(getattr(event, "x_root", 0)),
+            int(getattr(event, "y_root", 0)),
+            imgs,
+        )
+        if drop_idx is None:
+            target_widget = self.winfo_containing(int(getattr(event, "x_root", 0)), int(getattr(event, "y_root", 0)))
+            dst = self._extract_thumb_image_path(target_widget) or str(image_path or "")
+            if not dst or dst not in imgs:
+                return
+            drop_idx = imgs.index(dst)
+
+        moved = imgs.pop(src_idx)
+        if src_idx < drop_idx:
+            drop_idx -= 1
+        if drop_idx < 0:
+            drop_idx = 0
+        if drop_idx > len(imgs):
+            drop_idx = len(imgs)
+        imgs.insert(drop_idx, moved)
+        if imgs == list(self._selected.images or []):
+            return
+        self._selected.images = imgs
+
+        self._render_thumbnails(
+            self._selected.images or [],
+            source_map=getattr(self, "_last_rendered_source_map", None),
+        )
+        self._selected_image_path = src
+        self._on_select_thumbnail(src)
+        self._set_status("✅ Đã cập nhật thứ tự ảnh (chưa lưu)")
+
+    def _compute_drop_insert_index(self, x_root: int, y_root: int, imgs: list[str]) -> Optional[int]:
+        info = self._compute_drop_insert_info(x_root, y_root, imgs)
+        return int(info[0]) if info else None
+
+    def _compute_drop_insert_info(self, x_root: int, y_root: int, imgs: list[str]) -> Optional[tuple[int, int, int, int]]:
         """
-        Returns True if something was removed.
+        Compute insertion index + indicator position based on pointer position in thumbnail panel.
+        Allows dropping on blank left/right space, not just on a thumbnail.
+        Returns (insert_index, x_line_root, y_top_root, y_bottom_root).
         """
-        conn = self.state.db.connect()
-        try:
-            # Try unlink from new assets links
-            pdf_path = str(getattr(self.state, "catalog_pdf_path", "") or "")
-            img_db_path = img_path
-            if self.state.db:
-                pdf_path = self.state.db.to_db_path(pdf_path)
-                img_db_path = self.state.db.to_db_path(img_path)
-            row = None
+        cells = list(getattr(self, "_thumb_cells", []) or [])
+        if not cells:
+            return None
 
-            if pdf_path:
-                row = conn.execute(
-                    "SELECT id FROM assets WHERE asset_path=? AND pdf_path=? ORDER BY id DESC LIMIT 1",
-                    (img_db_path, pdf_path),
-                ).fetchone()
+        entries: list[dict[str, int | str]] = []
+        for p, w in cells:
+            try:
+                x0 = int(w.winfo_rootx())
+                y0 = int(w.winfo_rooty())
+                ww = int(w.winfo_width())
+                hh = int(w.winfo_height())
+                entries.append({"path": p, "x0": x0, "y0": y0, "x1": x0 + ww, "y1": y0 + hh, "xc": x0 + ww // 2, "yc": y0 + hh // 2})
+            except Exception:
+                continue
+        if not entries:
+            return None
 
-            if row is None:
-                # fallback: ignore pdf_path (in case pdf_path was stored differently)
-                row = conn.execute(
-                    "SELECT id FROM assets WHERE asset_path=? ORDER BY id DESC LIMIT 1",
-                    (img_db_path,),
-                ).fetchone()
+        entries.sort(key=lambda e: (int(e["y0"]), int(e["x0"])))
 
-            if row is not None:
-                asset_id = int(row["id"])
-                cur = conn.execute(
-                    "DELETE FROM item_asset_links WHERE item_id=? AND asset_id=?",
-                    (int(item_id), int(asset_id)),
-                )
-                conn.commit()
-                return cur.rowcount > 0
+        # Build visual rows from y-centers.
+        rows: list[list[dict[str, int | str]]] = []
+        row_tolerance = 42
+        for e in entries:
+            if not rows:
+                rows.append([e])
+                continue
+            last_row = rows[-1]
+            last_avg_y = sum(int(x["yc"]) for x in last_row) / max(1, len(last_row))
+            if abs(int(e["yc"]) - int(last_avg_y)) <= row_tolerance:
+                last_row.append(e)
+            else:
+                rows.append([e])
 
+        # Pick nearest row by y.
+        chosen_row = min(
+            rows,
+            key=lambda r: abs(y_root - int(sum(int(x["yc"]) for x in r) / max(1, len(r)))),
+        )
+        chosen_row = sorted(chosen_row, key=lambda e: int(e["xc"]))
+
+        # Global path order by visual layout.
+        visual_paths: list[str] = []
+        for r in rows:
+            for e in sorted(r, key=lambda t: int(t["xc"])):
+                visual_paths.append(str(e["path"]))
+        # Normalize to actual image list order membership.
+        visual_paths = [p for p in visual_paths if p in imgs]
+        if not visual_paths:
+            return None
+
+        y_top = min(int(e["y0"]) for e in chosen_row)
+        y_bottom = max(int(e["y1"]) for e in chosen_row)
+
+        # Insert before first thumbnail whose center is to the right of cursor.
+        for e in chosen_row:
+            if x_root < int(e["xc"]):
+                p = str(e["path"])
+                idx = visual_paths.index(p)
+                x_line = int(e["x0"]) - 3
+                return idx, x_line, y_top, y_bottom
+
+        # Cursor is right of row: insert after last item in chosen row.
+        last_p = str(chosen_row[-1]["path"])
+        if last_p in visual_paths:
+            idx = visual_paths.index(last_p) + 1
+            x_line = int(chosen_row[-1]["x1"]) + 3
+            return idx, x_line, y_top, y_bottom
+        return len(visual_paths), int(chosen_row[-1]["x1"]) + 3, y_top, y_bottom
+
+    def _is_over_images_panel(self, x_root: int, y_root: int) -> bool:
+        target = getattr(self, "thumb_canvas", None)
+        if target is None:
             return False
-        finally:
-            conn.close()
+        try:
+            x0 = target.winfo_rootx()
+            y0 = target.winfo_rooty()
+            x1 = x0 + target.winfo_width()
+            y1 = y0 + target.winfo_height()
+            return x0 <= x_root <= x1 and y0 <= y_root <= y1
+        except Exception:
+            return False
+
+    def _show_thumb_drag_ghost(self, image_path: str, x_root: int, y_root: int) -> None:
+        try:
+            with Image.open(image_path) as pil:
+                pil = pil.convert("RGBA")
+                pil.thumbnail((72, 72))
+                ghost_img = ImageTk.PhotoImage(pil)
+        except Exception:
+            return
+        try:
+            ghost = tk.Toplevel(self.root)
+            ghost.overrideredirect(True)
+            ghost.attributes("-topmost", True)
+            try:
+                ghost.attributes("-alpha", 0.85)
+            except Exception:
+                pass
+            lbl = tk.Label(
+                ghost,
+                image=ghost_img,
+                bd=1,
+                relief="solid",
+                background="#111111",
+            )
+            lbl.pack()
+            self._drag_ghost_ref = ghost_img
+            self._drag_ghost = ghost
+            self._move_thumb_drag_ghost(x_root, y_root)
+        except Exception:
+            self._drag_ghost = None
+            self._drag_ghost_ref = None
+
+    def _move_thumb_drag_ghost(self, x_root: int, y_root: int) -> None:
+        ghost = getattr(self, "_drag_ghost", None)
+        if not ghost or not ghost.winfo_exists():
+            return
+        ghost.geometry(f"+{x_root + 14}+{y_root + 14}")
+
+    def _hide_thumb_drag_ghost(self) -> None:
+        ghost = getattr(self, "_drag_ghost", None)
+        if ghost and ghost.winfo_exists():
+            try:
+                ghost.destroy()
+            except Exception:
+                pass
+        self._drag_ghost = None
+        self._drag_ghost_ref = None
+
+    def _show_thumb_drop_indicator(self, x_root: int, y_root: int, height: int) -> None:
+        ind = getattr(self, "_thumb_drop_indicator", None)
+        if not ind or not ind.winfo_exists():
+            try:
+                ind = tk.Toplevel(self.root)
+                ind.overrideredirect(True)
+                ind.attributes("-topmost", True)
+                frm = tk.Frame(ind, bg="#22C55E", width=3, height=max(8, int(height)))
+                frm.pack(fill="both", expand=True)
+                self._thumb_drop_indicator = ind
+            except Exception:
+                self._thumb_drop_indicator = None
+                return
+        try:
+            # Update size and position in root coordinates.
+            for child in ind.winfo_children():
+                child.configure(height=max(8, int(height)))
+            ind.geometry(f"3x{max(8, int(height))}+{int(x_root)}+{int(y_root)}")
+        except Exception:
+            pass
+
+    def _hide_thumb_drop_indicator(self) -> None:
+        ind = getattr(self, "_thumb_drop_indicator", None)
+        if ind and ind.winfo_exists():
+            try:
+                ind.destroy()
+            except Exception:
+                pass
+        self._thumb_drop_indicator = None
+
+    # Image DB persistence is handled in item save flow.
