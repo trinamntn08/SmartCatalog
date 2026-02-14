@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import unicodedata
+import re
 from smartcatalog.state import CatalogItem
 
 
@@ -37,6 +39,17 @@ class ItemsControllerMixin:
                 continue
         return s
 
+    @staticmethod
+    def _normalize_search_text(raw: str) -> str:
+        s = str(raw or "").strip().lower()
+        if not s:
+            return ""
+        # Accent-insensitive search for Vietnamese fields.
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(ch for ch in s if not unicodedata.combining(ch))
+        s = s.replace("\u0111", "d")
+        return " ".join(s.split())
+
     def refresh_items(self) -> None:
         if self.state.db:
             self.state.items_cache = self.state.db.list_items()
@@ -44,8 +57,10 @@ class ItemsControllerMixin:
         self._set_status(f"Đã tải {len(self.state.items_cache)} sản phẩm")
 
     def _filter_items(self) -> None:
-        q = (self.search_var.get() or "").strip().lower()
-        tokens = [t.strip() for t in q.split(",") if t.strip()]
+        q = self._normalize_search_text(self.search_var.get() or "")
+        # Split by spaces/commas so partial multi-word queries can match
+        # non-consecutive words in description fields (e.g. "Tim do").
+        tokens = [t.strip() for t in re.split(r"[,\s]+", q) if t.strip()]
 
         for row in self.items_tree.get_children():
             self.items_tree.delete(row)
@@ -58,7 +73,8 @@ class ItemsControllerMixin:
                 f"{getattr(it,'author','')} {getattr(it,'dimension','')} {getattr(it,'small_description','')} "
                 f"{it.description} {getattr(it,'description_excel','')} {getattr(it,'description_vietnames_from_excel','')} "
                 f"{'✅' if getattr(it, 'validated', False) else ''} {getattr(it, 'validated_at', '')}"
-            ).lower()
+            )
+            text = self._normalize_search_text(text)
 
             if tokens and not all(t in text for t in tokens):
                 continue
@@ -81,11 +97,18 @@ class ItemsControllerMixin:
                     getattr(it, "dimension", ""),
                     getattr(it, "surface_treatment", ""),
                     getattr(it, "material", ""),
+                    getattr(it, "small_description", ""),
+                    getattr(it, "description_excel", ""),
+                    getattr(it, "description_vietnames_from_excel", ""),
                     validated_at if getattr(it, "validated", False) else "",
                 ),
             )
 
     def _sort_by(self, col: str) -> None:
+        if bool(getattr(self, "_suppress_next_heading_sort", False)):
+            self._suppress_next_heading_sort = False
+            return
+
         # toggle direction
         if self._sort_col == col:
             self._sort_desc = not self._sort_desc
@@ -114,6 +137,12 @@ class ItemsControllerMixin:
                 return (getattr(it, "author", "") or "").lower()
             if col == "dimension":
                 return (getattr(it, "dimension", "") or "").lower()
+            if col == "small_description":
+                return (getattr(it, "small_description", "") or "").lower()
+            if col == "description_excel":
+                return (getattr(it, "description_excel", "") or "").lower()
+            if col == "description_vietnames_from_excel":
+                return (getattr(it, "description_vietnames_from_excel", "") or "").lower()
             if col == "validated":
                 return (
                     1 if getattr(it, "validated", False) else 0,
@@ -144,8 +173,10 @@ class ItemsControllerMixin:
             "material": "Material",
             "author": "Tác giả",
             "dimension": "Kích thước",
+            "small_description": "Mô tả từ PDF",
+            "description_excel": "Mô tả EN từ Excel",
+            "description_vietnames_from_excel": "Mô tả VI từ Excel",
             "validated": "Đã kiểm duyệt (Thời gian)",
-            "small_description": "Mô tả ngắn",
             "description": "Mô tả",
         }
 

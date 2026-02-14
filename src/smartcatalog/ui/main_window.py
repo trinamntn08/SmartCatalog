@@ -143,6 +143,14 @@ class MainWindow(
         self.var_export_images_in_ui_order = tk.BooleanVar(value=False)
 
         self._selected: Optional[CatalogItem] = None
+        self._column_drag_source_name: Optional[str] = None
+        self._column_drag_start_x: Optional[int] = None
+        self._column_drag_did_move: bool = False
+        self._column_drag_clear_job: Optional[str] = None
+        self._suppress_next_heading_sort: bool = False
+        self._column_visibility_vars: dict[str, tk.BooleanVar] = {}
+        self._hidden_column_positions: dict[str, int] = {}
+        self._column_menu: Optional[tk.Menu] = None
         
 
         self._build_layout()
@@ -244,9 +252,13 @@ class MainWindow(
             "dimension",
             "surface_treatment",
             "material",
+            "small_description",
+            "description_excel",
+            "description_vietnames_from_excel",
             "validated",
         )
         self.items_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=18)
+        self.items_tree["displaycolumns"] = columns
         # Highlight matched rows when filtering
         base_font = tkfont.nametofont(ttk.Style().lookup("Treeview", "font") or "TkDefaultFont")
         match_font = base_font.copy()
@@ -262,6 +274,9 @@ class MainWindow(
         self.items_tree.heading("dimension", command=lambda: self._sort_by("dimension"))
         self.items_tree.heading("surface_treatment", command=lambda: self._sort_by("surface_treatment"))
         self.items_tree.heading("material", command=lambda: self._sort_by("material"))
+        self.items_tree.heading("small_description", command=lambda: self._sort_by("small_description"))
+        self.items_tree.heading("description_excel", command=lambda: self._sort_by("description_excel"))
+        self.items_tree.heading("description_vietnames_from_excel", command=lambda: self._sort_by("description_vietnames_from_excel"))
         self.items_tree.heading("validated", command=lambda: self._sort_by("validated"))
 
         self.items_tree.column("id", width=40, anchor="center", stretch=False)
@@ -274,6 +289,9 @@ class MainWindow(
         self.items_tree.column("dimension", width=80, anchor="w", stretch=False)
         self.items_tree.column("surface_treatment", width=120, anchor="w", stretch=False)
         self.items_tree.column("material", width=80, anchor="w", stretch=False)
+        self.items_tree.column("small_description", width=220, anchor="w", stretch=False)
+        self.items_tree.column("description_excel", width=220, anchor="w", stretch=False)
+        self.items_tree.column("description_vietnames_from_excel", width=220, anchor="w", stretch=False)
         self.items_tree.column("validated", width=150, anchor="center", stretch=False)
 
         yscroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.items_tree.yview)
@@ -290,7 +308,183 @@ class MainWindow(
 
         self.items_tree.bind("<<TreeviewSelect>>", self._on_select_item)
         self.items_tree.bind("<ButtonPress-1>", self._on_items_tree_click_before_select, add="+")
+        self.items_tree.bind("<ButtonPress-1>", self._on_items_tree_heading_press, add="+")
+        self.items_tree.bind("<B1-Motion>", self._on_items_tree_heading_drag, add="+")
+        self.items_tree.bind("<ButtonRelease-1>", self._on_items_tree_heading_release, add="+")
+        self.items_tree.bind("<Button-3>", self._on_items_tree_heading_context_menu, add="+")
         self._update_sort_headers()
+
+    def _get_display_columns(self) -> list[str]:
+        cols = list(self.items_tree["displaycolumns"])
+        if len(cols) == 1 and str(cols[0]) == "#all":
+            cols = list(self.items_tree["columns"])
+        return [str(c) for c in cols]
+
+    def _on_items_tree_heading_press(self, event) -> None:
+        if self.items_tree.identify_region(event.x, event.y) != "heading":
+            self._column_drag_source_name = None
+            self._column_drag_start_x = None
+            self._column_drag_did_move = False
+            return
+
+        col_id = str(self.items_tree.identify_column(event.x) or "")
+        if not col_id.startswith("#"):
+            return
+        try:
+            idx = int(col_id[1:]) - 1
+        except Exception:
+            return
+
+        cols = self._get_display_columns()
+        if idx < 0 or idx >= len(cols):
+            return
+
+        self._column_drag_source_name = cols[idx]
+        self._column_drag_start_x = int(event.x)
+        self._column_drag_did_move = False
+
+    def _on_items_tree_heading_drag(self, event) -> None:
+        if not self._column_drag_source_name or self._column_drag_start_x is None:
+            return
+
+        if abs(int(event.x) - int(self._column_drag_start_x)) < 8:
+            return
+
+        col_id = str(self.items_tree.identify_column(event.x) or "")
+        if not col_id.startswith("#"):
+            return
+        try:
+            target_idx = int(col_id[1:]) - 1
+        except Exception:
+            return
+
+        cols = self._get_display_columns()
+        if self._column_drag_source_name not in cols:
+            return
+
+        src_idx = cols.index(self._column_drag_source_name)
+        if target_idx < 0 or target_idx >= len(cols) or target_idx == src_idx:
+            return
+
+        moving = cols.pop(src_idx)
+        cols.insert(target_idx, moving)
+        self.items_tree["displaycolumns"] = tuple(cols)
+        self._column_drag_did_move = True
+
+    def _clear_heading_sort_suppress(self) -> None:
+        self._column_drag_clear_job = None
+        self._suppress_next_heading_sort = False
+        self._column_drag_did_move = False
+
+    def _on_items_tree_heading_release(self, _event) -> None:
+        moved = bool(self._column_drag_did_move)
+        self._column_drag_source_name = None
+        self._column_drag_start_x = None
+
+        if moved:
+            self._suppress_next_heading_sort = True
+            if self._column_drag_clear_job is not None:
+                try:
+                    self.root.after_cancel(self._column_drag_clear_job)
+                except Exception:
+                    pass
+            self._column_drag_clear_job = self.root.after(250, self._clear_heading_sort_suppress)
+        else:
+            self._column_drag_did_move = False
+
+    @staticmethod
+    def _column_label(col: str) -> str:
+        labels = {
+            "id": "No",
+            "code": "Mã",
+            "page": "Trang",
+            "category": "Chủng loại",
+            "author": "Tác giả",
+            "shape": "Hình dạng",
+            "blade_tip": "Đầu lưỡi",
+            "dimension": "Kích thước",
+            "surface_treatment": "Xử lý bề mặt/ công nghệ",
+            "material": "Material",
+            "small_description": "Mô tả từ PDF",
+            "description_excel": "Mô tả EN từ Excel",
+            "description_vietnames_from_excel": "Mô tả VI từ Excel",
+            "validated": "Đã kiểm duyệt (Thời gian)",
+        }
+        return labels.get(str(col), str(col))
+
+    def _sync_column_visibility_vars(self) -> None:
+        visible = set(self._get_display_columns())
+        for col in [str(c) for c in self.items_tree["columns"]]:
+            var = self._column_visibility_vars.get(col)
+            if var is None:
+                var = tk.BooleanVar(value=(col in visible))
+                self._column_visibility_vars[col] = var
+            else:
+                var.set(col in visible)
+
+    def _toggle_column_visibility(self, col: str) -> None:
+        col = str(col)
+        visible = self._get_display_columns()
+        if col not in [str(c) for c in self.items_tree["columns"]]:
+            return
+
+        var = self._column_visibility_vars.get(col)
+        wants_visible = bool(var.get()) if var is not None else (col not in visible)
+
+        if wants_visible:
+            if col in visible:
+                return
+            insert_at = self._hidden_column_positions.pop(col, len(visible))
+            insert_at = max(0, min(int(insert_at), len(visible)))
+            visible.insert(insert_at, col)
+            self.items_tree["displaycolumns"] = tuple(visible)
+            self._update_sort_headers()
+            self._sync_column_visibility_vars()
+            return
+
+        if col not in visible:
+            return
+        if len(visible) <= 1:
+            if var is not None:
+                var.set(True)
+            messagebox.showwarning("Không thể ẩn", "Phải giữ lại ít nhất một cột hiển thị.")
+            return
+
+        self._hidden_column_positions[col] = visible.index(col)
+        visible = [c for c in visible if c != col]
+        self.items_tree["displaycolumns"] = tuple(visible)
+        self._update_sort_headers()
+        self._sync_column_visibility_vars()
+
+    def _on_items_tree_heading_context_menu(self, event) -> str | None:
+        if self.items_tree.identify_region(event.x, event.y) != "heading":
+            return None
+
+        try:
+            if self._column_menu is not None:
+                self._column_menu.destroy()
+        except Exception:
+            pass
+
+        self._sync_column_visibility_vars()
+        menu = tk.Menu(self.items_tree, tearoff=0)
+        for col in [str(c) for c in self.items_tree["columns"]]:
+            var = self._column_visibility_vars[col]
+            menu.add_checkbutton(
+                label=self._column_label(col),
+                variable=var,
+                command=lambda c=col: self._toggle_column_visibility(c),
+            )
+
+        self._column_menu = menu
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            try:
+                menu.grab_release()
+            except Exception:
+                pass
+        return "break"
 
     def _build_right_panel(self) -> None:
         parent = self.right_scroll.inner
