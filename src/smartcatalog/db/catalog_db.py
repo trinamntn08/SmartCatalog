@@ -976,3 +976,74 @@ class CatalogDB:
             if owns:
                 conn.close()
 
+    def update_excel_descriptions_by_code(
+        self,
+        *,
+        code: str,
+        description_vi: str,
+        description_en: str,
+        only_fill_empty: bool = False,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> bool:
+        """
+        Update the bilingual Excel descriptions for one product code.
+
+        When only_fill_empty is True, existing non-empty descriptions are kept.
+        Returns True when the item exists.
+        """
+        code = str(code or "").strip()
+        if not code:
+            return False
+
+        owns = conn is None
+        if conn is None:
+            conn = self.connect()
+            self._ensure_schema(conn)
+            self._ensure_columns(conn)
+
+        try:
+            if only_fill_empty:
+                cur = conn.execute(
+                    """
+                    UPDATE items
+                    SET description_vietnames_from_excel =
+                            CASE
+                                WHEN TRIM(COALESCE(description_vietnames_from_excel, '')) = ''
+                                THEN ?
+                                ELSE description_vietnames_from_excel
+                            END,
+                        description_excel =
+                            CASE
+                                WHEN TRIM(COALESCE(description_excel, '')) = ''
+                                THEN ?
+                                ELSE description_excel
+                            END
+                    WHERE code=?
+                    """,
+                    (
+                        str(description_vi or "").strip(),
+                        str(description_en or "").strip(),
+                        code,
+                    ),
+                )
+            else:
+                cur = conn.execute(
+                    """
+                    UPDATE items
+                    SET description_vietnames_from_excel=?,
+                        description_excel=?
+                    WHERE code=?
+                    """,
+                    (
+                        str(description_vi or "").strip(),
+                        str(description_en or "").strip(),
+                        code,
+                    ),
+                )
+            if owns:
+                conn.commit()
+            return bool(cur.rowcount)
+        finally:
+            if owns:
+                conn.close()
+

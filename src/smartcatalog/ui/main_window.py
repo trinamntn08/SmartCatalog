@@ -24,6 +24,14 @@ from smartcatalog.ui.controllers.items_controller import ItemsControllerMixin
 from smartcatalog.ui.controllers.item_form_controller import ItemFormControllerMixin
 from smartcatalog.loader.excel_loader import load_code_to_vi_en_from_excel, detect_excel_code_column
 from smartcatalog.ui.pdf_crop_window import PdfCropWindow
+from smartcatalog.ui.export_review_dialog import ExportPreflightItem, ExportReviewDialog
+from smartcatalog.utils.description_dictionary import import_dictionary_into_db
+from smartcatalog.utils.post_processing import (
+    DEFAULT_SHEET_NAME as POST_PROCESSING_SHEET_NAME,
+    PostProcessingRow,
+    apply_post_processing_branding,
+    write_post_processing_sheet,
+)
 
 import re
 import hashlib
@@ -188,7 +196,7 @@ class MainWindow(
 
         self.btn_search_images = ttk.Button(
             self.toolbar,
-            text="🔍 Xuất theo mã sản phẩm (Excel)",
+            text="Xuất catalog từ danh sách Excel",
             command=self.on_search_images_from_excel,
         )
         self.btn_search_images.pack(side="left")
@@ -873,6 +881,121 @@ class MainWindow(
         except Exception:
             return
 
+    def _show_export_result(
+        self,
+        *,
+        xlsx_path: str,
+        matched: int,
+        total: int,
+        images_found: int,
+        missing_vi: int,
+        missing_en: int,
+        missing_images: int,
+        missing_codes: list[str],
+    ) -> None:
+        """Show one combined export summary and unknown-code list."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Xuất dữ liệu hoàn tất")
+        popup.transient(self.root)
+        popup.geometry("620x560")
+        popup.minsize(520, 440)
+        popup.grab_set()
+
+        frame = ttk.Frame(popup, padding=14)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(
+            frame,
+            text="Xuất catalog hoàn tất",
+            font=("Segoe UI", 14, "bold"),
+        ).pack(anchor="w")
+        ttk.Label(
+            frame,
+            text=str(xlsx_path),
+            foreground="#555555",
+            wraplength=570,
+        ).pack(anchor="w", pady=(3, 12))
+
+        summary = ttk.LabelFrame(frame, text="Kết quả", padding=10)
+        summary.pack(fill="x")
+        summary_text = (
+            f"Sản phẩm khớp: {matched}/{total}\n"
+            f"Tìm thấy hình ảnh: {images_found}/{total}\n"
+            f"Thiếu mô tả VI: {missing_vi}\n"
+            f"Thiếu mô tả EN: {missing_en}\n"
+            f"Thiếu hình ảnh: {missing_images}\n"
+            f"Mã không tồn tại: {len(missing_codes)}"
+        )
+        ttk.Label(summary, text=summary_text, justify="left").pack(anchor="w")
+
+        missing_frame = ttk.LabelFrame(
+            frame,
+            text=f"Các mã không tìm thấy ({len(missing_codes)})",
+            padding=8,
+        )
+        missing_frame.pack(fill="both", expand=True, pady=(12, 0))
+        missing_frame.rowconfigure(0, weight=1)
+        missing_frame.columnconfigure(0, weight=1)
+
+        if missing_codes:
+            codes_list = tk.Listbox(missing_frame, height=9)
+            codes_scroll = ttk.Scrollbar(
+                missing_frame,
+                orient="vertical",
+                command=codes_list.yview,
+            )
+            codes_list.configure(yscrollcommand=codes_scroll.set)
+            codes_list.grid(row=0, column=0, sticky="nsew")
+            codes_scroll.grid(row=0, column=1, sticky="ns")
+            for code in missing_codes:
+                codes_list.insert("end", str(code))
+        else:
+            ttk.Label(
+                missing_frame,
+                text="Tất cả mã sản phẩm đều được tìm thấy trong CSDL.",
+                foreground="#267326",
+            ).grid(row=0, column=0, sticky="nw")
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", pady=(12, 0))
+
+        def copy_missing_codes() -> None:
+            if not missing_codes:
+                return
+            try:
+                popup.clipboard_clear()
+                popup.clipboard_append("\n".join(str(code) for code in missing_codes))
+                popup.update()
+            except Exception:
+                pass
+
+        copy_button = ttk.Button(
+            buttons,
+            text="Sao chép mã không tìm thấy",
+            command=copy_missing_codes,
+            state=("normal" if missing_codes else "disabled"),
+        )
+        copy_button.pack(side="left")
+        ttk.Button(
+            buttons,
+            text="Mở file Excel",
+            command=lambda: self._prompt_open_excel(xlsx_path),
+        ).pack(side="right")
+        ttk.Button(
+            buttons,
+            text="Đóng",
+            command=popup.destroy,
+        ).pack(side="right", padx=(0, 8))
+
+        popup.protocol("WM_DELETE_WINDOW", popup.destroy)
+        popup.update_idletasks()
+        try:
+            x = self.root.winfo_rootx() + (self.root.winfo_width() - popup.winfo_width()) // 2
+            y = self.root.winfo_rooty() + (self.root.winfo_height() - popup.winfo_height()) // 2
+            popup.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+
     # -----------------
     # Actions
     # -----------------
@@ -1512,7 +1635,7 @@ class MainWindow(
     def on_search_images_from_excel(self) -> None:
         """
         Load input from the first sheet, match codes to DB items, and write images + descriptions
-        into the next sheet of the same file.
+        into the workbook, plus a formatted Post Processing sheet.
         """
         if not self.state.db:
             messagebox.showwarning("Thiếu CSDL", "Vui lòng tạo/tải CSDL trước (từ PDF).")
@@ -1531,6 +1654,7 @@ class MainWindow(
         def work():
             from openpyxl import load_workbook
             from openpyxl.utils import get_column_letter
+            from openpyxl.styles import PatternFill
             from openpyxl.drawing.image import Image as XLImage
             from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
             from openpyxl.drawing.xdr import XDRPositiveSize2D
@@ -1538,6 +1662,13 @@ class MainWindow(
             include_desc_en = bool(self.var_export_desc_en.get())
             include_desc_vi = bool(self.var_export_desc_vi.get())
             preserve_image_order = bool(self.var_export_images_in_ui_order.get())
+
+            # Seed only empty database descriptions from the bundled dictionary.
+            # Existing user-entered values are never overwritten.
+            import_dictionary_into_db(
+                self.state.db,
+                self.state.project_dir,
+            )
 
             # 1) detect header + code column using existing heuristics on FIRST sheet (input)
             _df, header_row, code_col = detect_excel_code_column(xlsx_path)
@@ -1556,13 +1687,15 @@ class MainWindow(
             items = self.state.db.list_items()
             code_to_item: dict[str, CatalogItem] = {str(it.code): it for it in items}
 
-            # 3) open workbook and resolve input/output sheets
+            # 3) Keep the input sheet and use a temporary worksheet for the
+            # legacy layout pass. Only the formatted output sheet is retained.
             wb = load_workbook(xlsx_path)
             input_ws = wb.worksheets[0]
-            if len(wb.worksheets) > 1:
-                output_ws = wb.worksheets[1]
-            else:
-                output_ws = wb.create_sheet("Form đầu ra")
+            old_output_names = {"form đầu ra", "post processing"}
+            for existing_ws in list(wb.worksheets[1:]):
+                if existing_ws.title.strip().casefold() in old_output_names:
+                    wb.remove(existing_ws)
+            output_ws = wb.create_sheet("_SmartCatalog_Temp", 1)
             header_row_1 = header_row + 1  # openpyxl is 1-based
 
             # find code column index in INPUT header row
@@ -1585,19 +1718,86 @@ class MainWindow(
 
             # read input rows
             input_rows: list[tuple[str, str]] = []
-            sample_excel_codes: list[str] = []
             for r in range(header_row_1 + 1, input_ws.max_row + 1):
                 raw_code = input_ws.cell(row=r, column=code_col_idx).value
                 excel_code_str = str(raw_code or "").strip()
                 if not excel_code_str:
                     continue
-                if len(sample_excel_codes) < 5:
-                    sample_excel_codes.append(excel_code_str)
                 qty_val = ""
                 if qty_col_idx is not None:
                     qty_cell = input_ws.cell(row=r, column=qty_col_idx).value
                     qty_val = "" if qty_cell is None else str(qty_cell).strip()
                 input_rows.append((excel_code_str, qty_val))
+
+            # Validate before mutating the workbook. A product can have several
+            # simultaneous issues (for example, missing EN text and images).
+            preflight_items: list[ExportPreflightItem] = []
+            for excel_code_str, _qty_val in input_rows:
+                if excel_code_str in db_code_set:
+                    code_to_match = excel_code_str
+                else:
+                    code_to_match = db_index.get(_normalize_code_soft(excel_code_str), "")
+                item = code_to_item.get(code_to_match) if code_to_match else None
+                if item is None:
+                    preflight_items.append(
+                        ExportPreflightItem(
+                            code=excel_code_str,
+                            unknown_code=True,
+                        )
+                    )
+                    continue
+
+                description_vi = str(
+                    getattr(item, "description_vietnames_from_excel", "") or ""
+                ).strip()
+                description_en = str(
+                    getattr(item, "description_excel", "") or ""
+                ).strip()
+                pdf_description = str(getattr(item, "description", "") or "").strip()
+                effective_en = description_en or pdf_description
+                valid_images = [
+                    str(path)
+                    for path in list(getattr(item, "images", []) or [])
+                    if Path(path).is_file()
+                ]
+                preflight_items.append(
+                    ExportPreflightItem(
+                        code=str(item.code),
+                        item_id=int(item.id),
+                        description_vi=description_vi,
+                        description_en=description_en,
+                        pdf_description=pdf_description,
+                        image_paths=valid_images,
+                        missing_vi=bool(include_desc_vi and not description_vi),
+                        missing_en=bool(include_desc_en and not effective_en),
+                        missing_images=not bool(valid_images),
+                    )
+                )
+
+            issues = [item for item in preflight_items if item.has_issue]
+            if issues:
+                review_done = threading.Event()
+                review_result = {"action": "cancel"}
+
+                def show_preflight_review() -> None:
+                    try:
+                        review_result["action"] = ExportReviewDialog(
+                            self.root,
+                            self.state.db,
+                            issues,
+                        ).show()
+                    finally:
+                        review_done.set()
+
+                _safe_ui(self.root, show_preflight_review)
+                review_done.wait()
+                if review_result["action"] != "continue":
+                    _safe_ui(self.root, lambda: self._set_status("Đã hủy xuất catalog."))
+                    return
+
+                # Descriptions may have changed in the review dialog.
+                items = self.state.db.list_items()
+                code_to_item = {str(it.code): it for it in items}
 
             # prepare output sheet: remove merges/images first, then clear rows
             for rng in list(output_ws.merged_cells.ranges):
@@ -1624,7 +1824,11 @@ class MainWindow(
             matched = 0
             missing = 0
             missing_codes: list[str] = []
+            missing_vi = 0
+            missing_en = 0
+            missing_images = 0
             out_row = 2
+            post_processing_rows: list[PostProcessingRow] = []
 
             px_to_emu = 9525
             pad = 6
@@ -1659,6 +1863,10 @@ class MainWindow(
                         desc_vi_text = str(it.description_vietnames_from_excel or "").strip()
                     if include_desc_en and not desc_en_text and getattr(it, "description", ""):
                         desc_en_text = str(it.description or "").strip()
+                    if include_desc_vi and not desc_vi_text:
+                        missing_vi += 1
+                    if include_desc_en and not desc_en_text:
+                        missing_en += 1
 
                 # Decide row ordering: if both EN+VI, show VI above and EN below.
                 row1_desc = ""
@@ -1681,7 +1889,7 @@ class MainWindow(
                     output_ws.row_dimensions[out_row].height = max(15, min(80, 15 * line_count))
 
                 extra_desc_rows = 0
-                if row2_desc:
+                if include_desc_en and include_desc_vi:
                     extra_desc_rows = 1
                     vn_row = out_row + 1
                     output_ws.cell(row=vn_row, column=3, value=row2_desc)
@@ -1689,17 +1897,47 @@ class MainWindow(
                     line_count = max(1, str(row2_desc).count("\n") + 1)
                     output_ws.row_dimensions[vn_row].height = max(15, min(60, 15 * line_count))
 
+                yellow_fill = PatternFill("solid", fgColor="FFFF00")
+                primary_missing = bool(
+                    (include_desc_vi and not desc_vi_text)
+                    if include_desc_vi
+                    else (include_desc_en and not desc_en_text)
+                )
+                secondary_missing = bool(
+                    include_desc_vi and include_desc_en and not desc_en_text
+                )
+                if not it or primary_missing:
+                    output_ws.cell(row=out_row, column=3).fill = yellow_fill
+                if extra_desc_rows and secondary_missing:
+                    output_ws.cell(row=out_row + 1, column=3).fill = yellow_fill
+
                 # image row
                 img_row = out_row + 1 + extra_desc_rows
                 output_ws.merge_cells(start_row=img_row, start_column=1, end_row=img_row, end_column=4)
 
                 imgs = list(it.images or []) if it else []
-                if imgs:
+                valid_imgs = [str(path) for path in imgs if Path(path).is_file()]
+                if it and not valid_imgs:
+                    missing_images += 1
+                post_processing_rows.append(
+                    PostProcessingRow(
+                        number=idx,
+                        code=excel_code_str,
+                        qty=qty_val,
+                        desc_primary=row1_desc,
+                        desc_secondary=row2_desc,
+                        image_paths=list(valid_imgs),
+                        highlight_missing_desc=bool(not it or primary_missing),
+                        force_secondary_row=bool(include_desc_vi and include_desc_en),
+                        highlight_missing_secondary=secondary_missing,
+                    )
+                )
+                if valid_imgs:
                     updated += 1
 
                     # Load images and compute base sizes
                     loaded: list[tuple[Image.Image, int, int]] = []
-                    for img_path in imgs:
+                    for img_path in valid_imgs:
                         try:
                             p = Path(img_path)
                             if not p.exists():
@@ -1782,39 +2020,41 @@ class MainWindow(
 
                 out_row += 2 + extra_desc_rows
 
+            write_post_processing_sheet(
+                wb,
+                post_processing_rows,
+                preserve_image_order=preserve_image_order,
+                sheet_name=POST_PROCESSING_SHEET_NAME,
+                index=wb.worksheets.index(output_ws) + 1,
+            )
+            wb.remove(output_ws)
             wb.save(xlsx_path)
+            apply_post_processing_branding(
+                xlsx_path,
+                project_dir=self.state.project_dir,
+            )
 
-            if matched == 0:
-                sample_db_codes = db_codes[:5]
-                _safe_ui(
-                    self.root,
-                    lambda: messagebox.showwarning(
-                        "Không có khớp",
-                        "Không có mã Excel nào khớp với mã trong CSDL.\n\n"
-                        f"Cột mã phát hiện: {code_col}\n"
-                        f"Dòng tiêu đề: {header_row_1}\n"
-                        f"Mẫu mã Excel: {sample_excel_codes}\n"
-                        f"Mẫu mã CSDL: {sample_db_codes}",
-                    ),
-                )
-
-            def _after_export_dialog():
-                msg = (
-                    f"Sản phẩm khớp: {matched}/{total}\n"
-                    f"Tìm thấy hình ảnh của: {updated}/{total}\n"
-                    f"Đã cập nhật vào Sheet 2 của file Excel.\n\n"
-                    "Bạn có muốn mở file Excel vừa xuất không?"
-                )
-                if messagebox.askyesno("Xuất dữ liệu hoàn tất", msg):
-                    self._prompt_open_excel(xlsx_path)
-
-            _safe_ui(self.root, _after_export_dialog)
             _safe_ui(
                 self.root,
-                lambda: self._set_status(f"✅ Xuất ảnh ra Excel: khớp {matched}/{total}, ảnh {updated}/{total}")
+                lambda: self._show_export_result(
+                    xlsx_path=xlsx_path,
+                    matched=matched,
+                    total=total,
+                    images_found=updated,
+                    missing_vi=missing_vi,
+                    missing_en=missing_en,
+                    missing_images=missing_images,
+                    missing_codes=missing_codes,
+                ),
             )
-            if missing_codes:
-                _safe_ui(self.root, lambda: self._show_missing_codes(missing_codes))
+            _safe_ui(
+                self.root,
+                lambda: self._set_status(
+                    f"✅ Xuất Excel: khớp {matched}/{total} | thiếu VI={missing_vi}, "
+                    f"EN={missing_en}, ảnh={missing_images}, mã={missing} | "
+                    f"tạo {POST_PROCESSING_SHEET_NAME}"
+                )
+            )
 
         self._run_bg("⏳ Extracting images by code...", work)
 
