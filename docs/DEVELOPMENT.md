@@ -55,7 +55,7 @@ git diff --check
 git status --short
 ```
 
-The current baseline is 85 passing tests.
+The current baseline is 89 passing tests.
 
 ## Safe development rules
 
@@ -87,7 +87,8 @@ The script:
 5. copies the runtime icon and branding asset.
 
 Distribute the complete `dist\SmartCatalog\` folder. See
-[BUILD_EXE.md](../BUILD_EXE.md) for the release checklist and licensing note.
+[BUILD_EXE.md](../BUILD_EXE.md) for the clean-install checklist,
+existing-client data-preservation procedure, and licensing note.
 
 ## Before submitting a change
 

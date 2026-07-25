@@ -20,7 +20,7 @@ Date: 2026-07-25
 - The disposable frozen application remained running through a five-second
   first-launch smoke and a five-second restart smoke.
 - First launch created `config/database/sql`, all three asset-source
-  directories, `catalog_pdfs`, and `DATA_DIR.txt` beside the executable.
+  directories and `catalog_pdfs` beside the executable.
 - Disposable build and runtime data were removed after validation.
 
 PyInstaller emitted the existing optional warning that hidden import

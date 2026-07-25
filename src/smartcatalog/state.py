@@ -11,6 +11,9 @@ import sys
 from smartcatalog.domain.models import CatalogItem
 
 
+DEFAULT_DATABASE_PATH = Path("sql") / "catalog.db"
+
+
 def get_app_dir() -> Path:
     """
     Resolve the application root directory.
@@ -46,13 +49,12 @@ class AppState:
     def __post_init__(self) -> None:
         self.project_dir = Path(self.project_dir).resolve()
         self.data_dir = self.project_dir / "config" / "database"
-        self.db_path = self.data_dir / "sql" / "catalog.db"
         self.settings_path = self.data_dir / "settings.json"
-
         self.assets_dir = self.data_dir / "assets"
 
         self.ensure_dirs()
         self._load_settings()
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def ensure_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -64,53 +66,62 @@ class AppState:
 
         (self.data_dir / "catalog_pdfs").mkdir(parents=True, exist_ok=True)
         (self.data_dir / "sql").mkdir(parents=True, exist_ok=True)
-        self._write_data_dir_marker()
-
-    def _write_data_dir_marker(self) -> None:
-        """
-        One-time marker file to make the data directory easy to find.
-        """
-        try:
-            marker = self.data_dir / "DATA_DIR.txt"
-            if marker.exists():
-                return
-            marker.write_text(
-                f"This folder stores SmartCatalog data.\nPath: {self.data_dir}\n",
-                encoding="utf-8",
-            )
-        except Exception:
-            pass
 
     # -------------------------
     # Settings persistence
     # -------------------------
 
-    def _load_settings(self) -> None:
+    def _resolve_data_path(self, value: str | Path) -> Path:
+        path = Path(value)
+        if not path.is_absolute():
+            path = self.data_dir / path
+        return path.resolve()
+
+    def _settings_path_value(self, path: str | Path) -> str:
+        resolved = Path(path).resolve()
         try:
-            if not self.settings_path.exists():
-                return
-            data = json.loads(self.settings_path.read_text(encoding="utf-8"))
-            pdf = (data.get("catalog_pdf_path") or "").strip()
-            if pdf:
-                p = Path(pdf)
-                if not p.is_absolute():
-                    p = (self.data_dir / p).resolve()
-                if p.exists():
-                    self.catalog_pdf_path = p
+            return str(resolved.relative_to(self.data_dir))
+        except ValueError:
+            return str(resolved)
+
+    def _load_settings(self) -> None:
+        data: dict[str, Any] = {}
+        should_save = False
+        try:
+            if self.settings_path.exists():
+                loaded = json.loads(self.settings_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    data = loaded
+                else:
+                    should_save = True
         except Exception:
-            return
+            data = {}
+            should_save = True
+
+        database_value = str(data.get("database_path") or "").strip()
+        if not database_value:
+            database_value = str(DEFAULT_DATABASE_PATH)
+            should_save = True
+        self.db_path = self._resolve_data_path(database_value)
+
+        pdf_value = str(data.get("catalog_pdf_path") or "").strip()
+        if pdf_value:
+            pdf_path = self._resolve_data_path(pdf_value)
+            if pdf_path.exists():
+                self.catalog_pdf_path = pdf_path
+
+        if not self.settings_path.exists() or should_save:
+            self._save_settings()
 
     def _save_settings(self) -> None:
         try:
-            rel_pdf = ""
-            if self.catalog_pdf_path:
-                p = Path(self.catalog_pdf_path)
-                try:
-                    rel_pdf = str(p.relative_to(self.data_dir))
-                except Exception:
-                    rel_pdf = str(p)
             payload = {
-                "catalog_pdf_path": rel_pdf,
+                "database_path": self._settings_path_value(self.db_path),
+                "catalog_pdf_path": (
+                    self._settings_path_value(self.catalog_pdf_path)
+                    if self.catalog_pdf_path
+                    else ""
+                ),
             }
             self.settings_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         except Exception:

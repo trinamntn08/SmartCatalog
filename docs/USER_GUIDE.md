@@ -120,13 +120,21 @@ config/database/
 ```
 
 The release package intentionally starts without the development database or
-imported user content. First launch creates the writable directory structure.
+imported user content. First launch creates the writable directory structure
+and writes `settings.json` with `database_path` set to `sql/catalog.db`.
+Changing that setting changes which SQLite catalog is opened on the next
+launch. Relative database paths are resolved from `config/database/`; absolute
+paths are also accepted.
+
+For a portable copy, move or back up the complete `config/database/` folder,
+not only the SQLite file. Product images and catalog PDFs are separate files
+whose paths are stored relative to that folder.
 
 ## Troubleshooting
 
 - If the application starts with an empty catalog, confirm whether you launched
-  the source version or a separate release folder. Each location has its own
-  `config\database\sql\catalog.db`.
+  the source version or a separate release folder, then check `database_path`
+  in that installation's `config\database\settings.json`.
 - If a PDF or Excel operation takes time, wait for the status bar; long work
   runs in the background.
 - If export data is missing, check the product code and the pre-export review.
