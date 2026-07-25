@@ -23,6 +23,7 @@ from smartcatalog.loader.excel_loader import (
     load_code_to_vi_en_from_excel,
     normalize_code_soft,
 )
+from smartcatalog.services.excel_catalog_import import import_excel_catalog
 from smartcatalog.ui.main_window import (
     MainWindow,
     _build_db_code_index,
@@ -403,6 +404,64 @@ class ExcelImportWorkflowCharacterizationTests(unittest.TestCase):
                 ("excel", "excel", 1, 1),
                 ("excel", "excel", 1, 1),
             ],
+        )
+
+    def test_extracted_service_preserves_import_result_and_database_shape(self) -> None:
+        self.db.upsert_by_code(code="12-345-67", page=1)
+        self.db.upsert_by_code(code="98-765-43", page=2)
+        workbook_path = self.create_import_workbook()
+        decisions: list[str] = []
+
+        result = import_excel_catalog(
+            workbook_path,
+            db=self.db,
+            assets_dir=self.data_dir / "assets",
+            should_update_existing=lambda code: decisions.append(code) or True,
+        )
+
+        self.assertEqual(
+            (
+                result.total,
+                result.created_new,
+                result.updated,
+                result.skipped_existing,
+                result.images_updated,
+                result.images_missing,
+                result.image_rows_total,
+            ),
+            (3, 1, 2, 0, 2, 0, 4),
+        )
+        self.assertEqual(result.missing_codes, ("12-345-67", "98 – 765 – 43"))
+        self.assertEqual(decisions, ["12-345-67", "98-765-43", "12-345-67", "98-765-43"])
+
+        with closing(self.db.connect()) as connection:
+            items = connection.execute(
+                """
+                SELECT code, description_excel, description_vietnames_from_excel
+                FROM items ORDER BY id
+                """
+            ).fetchall()
+            assets = connection.execute(
+                "SELECT source, page FROM assets ORDER BY id"
+            ).fetchall()
+            links = connection.execute(
+                """
+                SELECT l.match_method, l.verified, l.is_primary
+                FROM item_asset_links l ORDER BY l.id
+                """
+            ).fetchall()
+        self.assertEqual(
+            [tuple(row) for row in items],
+            [
+                ("12-345-67", "EN exact", "VI exact"),
+                ("98-765-43", "EN normalized", "VI normalized"),
+                ("77-777-77", "EN new", "VI new"),
+            ],
+        )
+        self.assertEqual([tuple(row) for row in assets], [("excel", 0), ("excel", 0)])
+        self.assertEqual(
+            [tuple(row) for row in links],
+            [("excel", 1, 1), ("excel", 1, 1)],
         )
 
 

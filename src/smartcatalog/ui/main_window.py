@@ -23,7 +23,7 @@ from smartcatalog.ui.controllers.candidates_controller import CandidatesControll
 from smartcatalog.ui.controllers.images_controller import ImagesControllerMixin
 from smartcatalog.ui.controllers.items_controller import ItemsControllerMixin
 from smartcatalog.ui.controllers.item_form_controller import ItemFormControllerMixin
-from smartcatalog.loader.excel_loader import load_code_to_vi_en_from_excel, detect_excel_code_column
+from smartcatalog.loader.excel_loader import detect_excel_code_column
 from smartcatalog.ui.pdf_crop_window import PdfCropWindow
 from smartcatalog.ui.export_review_dialog import ExportPreflightItem, ExportReviewDialog
 from smartcatalog.utils.description_dictionary import import_dictionary_into_db
@@ -38,12 +38,11 @@ from smartcatalog.utils.code_normalization import (
     normalize_code_soft,
 )
 from smartcatalog.utils.filename_utils import sanitize_filename
-from smartcatalog.utils.hashing import sha256_bytes
 from smartcatalog.utils.text_normalization import normalize_header_text
 from smartcatalog.utils.ui_dispatch import dispatch_to_tk
 from smartcatalog.utils.workbook_images import get_image_anchor_row, image_to_pil
+from smartcatalog.services.excel_catalog_import import import_excel_catalog
 
-from bisect import bisect_right
 def _normalize_code_soft(s: str) -> str:
     return normalize_code_soft(s)
 
@@ -1173,12 +1172,6 @@ class MainWindow(
         self._run_bg("⏳ Đang backup CSDL...", work)
 
     def on_build_excel_db(self) -> None:
-        """
-        Load an Excel file and update items.description_excel and images by matching item code.
-        Matching strategy:
-        1) exact code match
-        2) normalized match (spaces removed, weird dashes fixed) -> only if uniquely maps to a DB code
-        """
         if not self.state.db:
             messagebox.showwarning("Thiếu CSDL", "Vui lòng tạo/tải CSDL trước (từ PDF).")
             return
@@ -1191,7 +1184,6 @@ class MainWindow(
             return
 
         def work():
-            from openpyxl import load_workbook
             apply_all_choice: Optional[bool] = None
             decision_by_code: dict[str, bool] = {}
 
@@ -1222,358 +1214,28 @@ class MainWindow(
                 decision_by_code[code_key] = result["update"]
                 return bool(result["update"])
 
-            # 1) read excel (all sheets) -> {excel_code: (vi, en)}
-            mapping: dict[str, tuple[str, str]] = {}
-            wb = load_workbook(xlsx_path)
-            sheet_names = list(wb.sheetnames)
-            for sn in sheet_names:
-                try:
-                    m = load_code_to_vi_en_from_excel(xlsx_path, sheet_name=sn)
-                except Exception:
-                    continue
-                for k, v in m.items():
-                    key = str(k).strip()
-                    if key in mapping:
-                        continue
-                    mapping[key] = (str(v[0]).strip(), str(v[1]).strip())
-
-            # 2) read all DB codes once (exact + normalized index)
-            conn = self.state.db.connect()
-            try:
-                rows = conn.execute("SELECT code FROM items").fetchall()
-                db_codes = [str(r["code"]) for r in rows]
-            finally:
-                conn.close()
-
-            db_code_set = set(db_codes)
-            db_index = _build_db_code_index(db_codes)  # normalized -> original db code (unique only)
-
-            # 3) build image map from Excel (embedded images)
-            image_map: dict[str, list[str]] = {}
-            image_rows_total = 0
-            try:
-                hash_to_path: dict[str, str] = {}
-                per_code_hashes: dict[str, set[str]] = {}
-                first_code_occurrence: dict[str, tuple[str, int]] = {}
-
-                # Pre-pass: find first (sheet, row) occurrence of each code across all sheets
-                for sn in sheet_names:
-                    ws = wb[sn]
-                    try:
-                        _df, header_row, code_col = detect_excel_code_column(xlsx_path, sheet_name=sn)
-                    except Exception:
-                        continue
-                    header_row_1 = header_row + 1  # openpyxl is 1-based
-
-                    code_col_idx = None
-                    for cell in ws[header_row_1]:
-                        if _normalize_header_text(str(cell.value or "")) == _normalize_header_text(code_col):
-                            code_col_idx = cell.column
-                            break
-                    if code_col_idx is None:
-                        continue
-
-                    for r in range(header_row_1 + 1, ws.max_row + 1):
-                        raw_code = ws.cell(row=r, column=code_col_idx).value
-                        excel_code_str = str(raw_code or "").strip()
-                        if not excel_code_str:
-                            continue
-                        if excel_code_str not in first_code_occurrence:
-                            first_code_occurrence[excel_code_str] = (sn, r)
-
-                for sn in sheet_names:
-                    ws = wb[sn]
-                    try:
-                        _df, header_row, code_col = detect_excel_code_column(xlsx_path, sheet_name=sn)
-                    except Exception:
-                        continue
-                    header_row_1 = header_row + 1  # openpyxl is 1-based
-
-                    # find code column index in header row
-                    code_col_idx = None
-                    for cell in ws[header_row_1]:
-                        if _normalize_header_text(str(cell.value or "")) == _normalize_header_text(code_col):
-                            code_col_idx = cell.column
-                            break
-                    if code_col_idx is None:
-                        continue
-
-                    # map row -> excel code
-                    code_rows: list[int] = []
-                    row_to_code: dict[int, str] = {}
-                    for r in range(header_row_1 + 1, ws.max_row + 1):
-                        raw_code = ws.cell(row=r, column=code_col_idx).value
-                        excel_code_str = str(raw_code or "").strip()
-                        if not excel_code_str:
-                            continue
-                        code_rows.append(r)
-                        row_to_code[r] = excel_code_str
-                    code_rows.sort()
-
-                    # extract images and map to nearest code row above
-                    if code_rows and getattr(ws, "_images", None):
-                        out_dir = Path(self.state.assets_dir) / "excel_import"
-                        out_dir.mkdir(parents=True, exist_ok=True)
-
-                        per_code_counts: dict[str, int] = {}
-                        safe_sheet = _sanitize_filename(sn)
-                        for img in ws._images:
-                            anchor_row = _get_image_anchor_row(img)
-                            if anchor_row is None:
-                                continue
-                            image_rows_total += 1
-
-                            idx = bisect_right(code_rows, anchor_row) - 1
-                            if idx < 0:
-                                continue
-                            code_row = code_rows[idx]
-                            excel_code = row_to_code.get(code_row, "")
-                            if not excel_code:
-                                continue
-                            if first_code_occurrence.get(excel_code) != (sn, code_row):
-                                continue
-
-                            pil = _image_to_pil(img)
-                            if pil is None:
-                                continue
-
-                            # dedupe by image content (hash of PNG bytes)
-                            buf = io.BytesIO()
-                            pil.convert("RGBA").save(buf, format="PNG")
-                            data = buf.getvalue()
-                            img_hash = sha256_bytes(data)
-
-                            code_hashes = per_code_hashes.setdefault(excel_code, set())
-                            if img_hash in code_hashes:
-                                continue
-                            code_hashes.add(img_hash)
-
-                            count = per_code_counts.get(excel_code, 0) + 1
-                            per_code_counts[excel_code] = count
-
-                            safe_code = _sanitize_filename(excel_code)
-                            out_path = out_dir / f"{safe_sheet}_{safe_code}_{img_hash[:10]}.png"
-                            path_str = hash_to_path.get(img_hash)
-                            if path_str is None:
-                                try:
-                                    out_path.write_bytes(data)
-                                except Exception:
-                                    continue
-                                path_str = str(out_path)
-                                hash_to_path[img_hash] = path_str
-
-                            lst = image_map.setdefault(excel_code, [])
-                            if path_str not in lst:
-                                lst.append(path_str)
-            except Exception:
-                image_map = {}
-
-            total = len(mapping)
-            updated = 0
-            missing = 0
-            missing_codes: list[str] = []
-            images_updated = 0
-            images_missing = 0
-            skipped_existing = 0
-            created_new = 0
-            i = 0
-
-            # 4) update DB (description + images) using one connection
-            conn = self.state.db.connect()
-            try:
-                for excel_code, desc_pair in mapping.items():
-                    i += 1
-                    excel_code_str = str(excel_code).strip()
-
-                    # exact match first
-                    if excel_code_str in db_code_set:
-                        code_to_update = excel_code_str
-                    else:
-                        # normalized match (only if unique)
-                        code_to_update = db_index.get(_normalize_code_soft(excel_code_str), "")
-
-                    if code_to_update:
-                        if not should_update_existing(code_to_update):
-                            skipped_existing += 1
-                            continue
-                        desc_vi, desc_en = desc_pair
-                        cur = conn.execute(
-                            "UPDATE items SET description_excel=?, description_vietnames_from_excel=? WHERE code=?",
-                            (str(desc_en).strip(), str(desc_vi).strip(), code_to_update),
-                        )
-                        if cur.rowcount > 0:
-                            updated += 1
-                        else:
-                            missing += 1
-                        missing_codes.append(excel_code_str)
-                    else:
-                        # Not found in DB: create a new item from Excel fields.
-                        desc_vi, desc_en = desc_pair
-                        conn.execute(
-                            """
-                            INSERT INTO items(
-                                code,
-                                description,
-                                description_excel,
-                                description_vietnames_from_excel,
-                                pdf_path,
-                                page,
-                                validated,
-                                validated_at,
-                                category,
-                                author,
-                                dimension,
-                                small_description,
-                                shape,
-                                blade_tip,
-                                surface_treatment,
-                                material
-                            )
-                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                            """,
-                            (
-                                excel_code_str,
-                                "",
-                                str(desc_en).strip(),
-                                str(desc_vi).strip(),
-                                "",
-                                None,
-                                0,
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                            ),
-                        )
-                        db_code_set.add(excel_code_str)
-                        decision_by_code[excel_code_str] = True
-                        created_new += 1
-
-                    # progress update (every 25 rows)
-                    if i % 25 == 0:
-                        _safe_ui(self.root, lambda i=i, total=total, updated=updated, missing=missing:
-                                self._set_status(f"⏳ Cập nhật Excel {i}/{total} | đã cập nhật={updated} | thiếu={missing}"))
-
-                # images: link excel images into assets + item_asset_links (preferred)
-                excel_asset_pdf_path = f"excel:{xlsx_path}"
-                excel_asset_pdf_path_db = (
-                    self.state.db.to_db_path(excel_asset_pdf_path)
-                    if self.state.db
-                    else excel_asset_pdf_path
+            def report_progress(i: int, total: int, updated: int, missing: int):
+                _safe_ui(
+                    self.root,
+                    lambda: self._set_status(
+                        f"⏳ Cập nhật Excel {i}/{total} | đã cập nhật={updated} | thiếu={missing}"
+                    ),
                 )
-                for excel_code, img_paths in image_map.items():
-                    # keep order but drop duplicates
-                    seen: set[str] = set()
-                    unique_paths: list[str] = []
-                    for p in img_paths:
-                        if p in seen:
-                            continue
-                        seen.add(p)
-                        unique_paths.append(p)
-                    excel_code_str = str(excel_code).strip()
-                    if excel_code_str in db_code_set:
-                        code_to_update = excel_code_str
-                    else:
-                        code_to_update = db_index.get(_normalize_code_soft(excel_code_str), "")
 
-                    if not code_to_update:
-                        # No matching item yet: create a minimal new item for this code.
-                        conn.execute(
-                            """
-                            INSERT INTO items(
-                                code,
-                                description,
-                                description_excel,
-                                description_vietnames_from_excel,
-                                pdf_path,
-                                page,
-                                validated,
-                                validated_at,
-                                category,
-                                author,
-                                dimension,
-                                small_description,
-                                shape,
-                                blade_tip,
-                                surface_treatment,
-                                material
-                            )
-                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                            """,
-                            (
-                                excel_code_str,
-                                "",
-                                "",
-                                "",
-                                "",
-                                None,
-                                0,
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                            ),
-                        )
-                        db_code_set.add(excel_code_str)
-                        created_new += 1
-                        code_to_update = excel_code_str
-                        decision_by_code[code_to_update] = True
-                    if not should_update_existing(code_to_update):
-                        continue
-
-                    row = conn.execute("SELECT id FROM items WHERE code=?", (code_to_update,)).fetchone()
-                    if row is None:
-                        images_missing += 1
-                        continue
-
-                    item_id = int(row["id"])
-                    # replace existing asset links so Excel images show in UI
-                    conn.execute("DELETE FROM item_asset_links WHERE item_id=?", (item_id,))
-                    for idx, p in enumerate(unique_paths):
-                        asset_path_db = self.state.db.to_db_path(p) if self.state.db else p
-                        asset_row = conn.execute(
-                            "SELECT id FROM assets WHERE pdf_path=? AND page=? AND asset_path=?",
-                            (excel_asset_pdf_path_db, 0, asset_path_db),
-                        ).fetchone()
-                        if asset_row:
-                            asset_id = int(asset_row["id"])
-                        else:
-                            cur = conn.execute(
-                                """
-                                INSERT INTO assets(pdf_path, page, asset_path, x0, y0, x1, y1, source, sha256)
-                                VALUES(?,?,?,?,?,?,?,?,?)
-                                """,
-                                (excel_asset_pdf_path_db, 0, asset_path_db, None, None, None, None, "excel", ""),
-                            )
-                            asset_id = int(cur.lastrowid)
-                        conn.execute(
-                            """
-                            INSERT OR IGNORE INTO item_asset_links(item_id, asset_id, match_method, score, verified, is_primary)
-                            VALUES(?,?,?,?,?,?)
-                            """,
-                            (item_id, asset_id, "excel", None, 1, 1 if idx == 0 else 0),
-                        )
-                    images_updated += 1
-
-                conn.commit()
-            finally:
-                conn.close()
-
-            # 5) refresh UI and show summary
+            result = import_excel_catalog(
+                xlsx_path,
+                db=self.state.db,
+                assets_dir=self.state.assets_dir,
+                should_update_existing=should_update_existing,
+                progress_callback=report_progress,
+            )
             _safe_ui(self.root, self.refresh_items)
-            _safe_ui(self.root, lambda: self._set_status(
-                f"✅ Nhập Excel xong | tạo mới={created_new} | đã cập nhật={updated} | bỏ qua={skipped_existing} | thiếu={missing} | ảnh={images_updated}"
-            ))
+            _safe_ui(
+                self.root,
+                lambda: self._set_status(
+                    f"✅ Nhập Excel xong | tạo mới={result.created_new} | đã cập nhật={result.updated} | bỏ qua={result.skipped_existing} | thiếu={result.missing} | ảnh={result.images_updated}"
+                ),
+            )
             _safe_ui(
                 self.root,
                 lambda: messagebox.showinfo(
@@ -1581,19 +1243,22 @@ class MainWindow(
                     "Số dòng đọc: {total}\nTạo mới: {created_new}\nĐã cập nhật: {updated}\nBỏ qua mã đã tồn tại: {skipped_existing}\nMã thiếu: {missing}\n"
                     "Ảnh đã gắn: {images_updated}\nẢnh thiếu: {images_missing}\n"
                     "Ảnh tìm thấy trong file: {image_rows_total}".format(
-                        total=total,
-                        created_new=created_new,
-                        updated=updated,
-                        skipped_existing=skipped_existing,
-                        missing=missing,
-                        images_updated=images_updated,
-                        images_missing=images_missing,
-                        image_rows_total=image_rows_total,
+                        total=result.total,
+                        created_new=result.created_new,
+                        updated=result.updated,
+                        skipped_existing=result.skipped_existing,
+                        missing=result.missing,
+                        images_updated=result.images_updated,
+                        images_missing=result.images_missing,
+                        image_rows_total=result.image_rows_total,
                     ),
                 ),
             )
-            if missing_codes:
-                _safe_ui(self.root, lambda: self._show_missing_codes(missing_codes))
+            if result.missing_codes:
+                _safe_ui(
+                    self.root,
+                    lambda: self._show_missing_codes(list(result.missing_codes)),
+                )
 
         self._run_bg("⏳ Đang cập nhật mô tả và ảnh từ Excel...", work)
 
