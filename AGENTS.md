@@ -154,7 +154,7 @@ Do not edit generated `build/` or `dist/` contents. Change the spec or build scr
 
 ## Change workflow
 
-For the behavior-preserving cleanup program, follow `docs/REFACTOR_PLAN.md`. Its phases, validation gates, and checkpoint commits are mandatory; do not skip ahead or combine phases.
+For the behavior-preserving cleanup program, read `docs/REFACTOR_STATE.md` first to find the authoritative resume point, then follow `docs/REFACTOR_PLAN.md`. Its phases, validation gates, state updates, and checkpoint commits are mandatory; do not skip ahead or combine phases.
 
 Before editing:
 

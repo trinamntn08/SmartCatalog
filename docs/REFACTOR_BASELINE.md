@@ -6,7 +6,7 @@ This document records the starting environment and manual verification process f
 
 - Contributor guide: `23a3121`
 - Refactor plan: `6c7b912`
-- Phase 0 checkpoint: this document's checkpoint commit
+- Phase 0 checkpoint: `4926220`
 
 ## Reference environment
 
@@ -153,5 +153,5 @@ Use this checklist in the later phases selected by `docs/REFACTOR_PLAN.md`.
 
 | Phase | Commit | Automated result | Manual result | Notes |
 |---|---|---|---|---|
-| 0 | Checkpoint 0 commit | Passed: compile, imports, 7 tests, diff check | Not run: interactive GUI unavailable during automated checkpoint | Disposable fixture/snapshot harness and baseline documentation complete |
-| 1 | Checkpoint 1 commit | Passed: compile, imports, 23 tests, diff check | Not required: characterization used fresh and upgraded disposable databases | Current schema, mapping, paths, ordering, and mixed transaction behavior locked down |
+| 0 | `4926220` | Passed: compile, imports, 7 tests, diff check | Not run: interactive GUI unavailable during automated checkpoint | Disposable fixture/snapshot harness and baseline documentation complete |
+| 1 | `3326d1e` | Passed: compile, imports, 23 tests, diff check | Not required: characterization used fresh and upgraded disposable databases | Current schema, mapping, paths, ordering, and mixed transaction behavior locked down |

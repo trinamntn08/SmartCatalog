@@ -6,6 +6,8 @@ Refactor SmartCatalog into code that is easier to read, test, and maintain while
 
 This is an incremental plan, not a rewrite. Every phase must be implemented, tested, validated, reviewed, and committed as its own checkpoint before work begins on the next phase.
 
+The authoritative cross-session resume point is `docs/REFACTOR_STATE.md`. Update it at every checkpoint together with this plan and `docs/REFACTOR_BASELINE.md`.
+
 ## Non-regression contract
 
 Unless a separately approved change explicitly says otherwise, the refactor must preserve:
