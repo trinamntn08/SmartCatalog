@@ -112,10 +112,6 @@ class WorkflowsControllerMixin:
 
         self._run_bg("⏳ Đang tạo/cập nhật CSDL từ PDF...", work)
 
-    def on_choose_pdf_and_build_db(self) -> None:
-        """Compatibility callback for the former PDF workflow name."""
-        WorkflowsControllerMixin.on_import_pdf_catalog(self)
-
     def _ask_update_existing_item_dialog(self, code: str) -> tuple[bool, bool]:
         """
         Ask what to do when an item code already exists.
@@ -305,10 +301,6 @@ class WorkflowsControllerMixin:
 
         self._run_bg("⏳ Đang cập nhật mô tả và ảnh từ Excel...", work)
 
-    def on_build_excel_db(self) -> None:
-        """Compatibility callback for the former Excel-import workflow name."""
-        WorkflowsControllerMixin.on_import_excel_catalog(self)
-
     def on_export_catalog(self) -> None:
         if not self.state.db:
             messagebox.showwarning(
@@ -401,7 +393,3 @@ class WorkflowsControllerMixin:
             )
 
         self._run_bg("⏳ Extracting images by code...", work)
-
-    def on_search_images_from_excel(self) -> None:
-        """Compatibility callback for the former catalog-export workflow name."""
-        WorkflowsControllerMixin.on_export_catalog(self)

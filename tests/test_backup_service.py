@@ -160,39 +160,3 @@ class BackupServiceTests(unittest.TestCase):
             MainWindow.on_export_catalog,
             WorkflowsControllerMixin.on_export_catalog,
         )
-        self.assertIs(
-            MainWindow.on_choose_pdf_and_build_db,
-            WorkflowsControllerMixin.on_choose_pdf_and_build_db,
-        )
-        self.assertIs(
-            MainWindow.on_build_excel_db,
-            WorkflowsControllerMixin.on_build_excel_db,
-        )
-        self.assertIs(
-            MainWindow.on_search_images_from_excel,
-            WorkflowsControllerMixin.on_search_images_from_excel,
-        )
-
-    def test_legacy_workflow_names_delegate_to_canonical_callbacks(self) -> None:
-        target = object()
-        with (
-            patch.object(
-                WorkflowsControllerMixin,
-                "on_import_pdf_catalog",
-            ) as import_pdf,
-            patch.object(
-                WorkflowsControllerMixin,
-                "on_import_excel_catalog",
-            ) as import_excel,
-            patch.object(
-                WorkflowsControllerMixin,
-                "on_export_catalog",
-            ) as export_catalog,
-        ):
-            MainWindow.on_choose_pdf_and_build_db(target)
-            MainWindow.on_build_excel_db(target)
-            MainWindow.on_search_images_from_excel(target)
-
-        import_pdf.assert_called_once_with(target)
-        import_excel.assert_called_once_with(target)
-        export_catalog.assert_called_once_with(target)

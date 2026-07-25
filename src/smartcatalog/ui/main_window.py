@@ -5,7 +5,7 @@ import threading
 import traceback
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import ttk, scrolledtext, messagebox, filedialog
+from tkinter import ttk, scrolledtext, messagebox
 from pathlib import Path
 from typing import Callable, Optional, TYPE_CHECKING
 import os
@@ -27,13 +27,13 @@ def _safe_ui(root: tk.Misc, fn: Callable[[], None]) -> None:
 
 
 class MainWindow(
-                    ttk.Frame,
-                    ItemsControllerMixin,
-                    CandidatesControllerMixin,
-                    ImagesControllerMixin,
-                    ItemFormControllerMixin,
-                    WorkflowsControllerMixin,
-                ):
+    ttk.Frame,
+    ItemsControllerMixin,
+    CandidatesControllerMixin,
+    ImagesControllerMixin,
+    ItemFormControllerMixin,
+    WorkflowsControllerMixin,
+):
 
     def __init__(self, root: tk.Tk, state: Optional[AppState] = None):
         super().__init__(root, padding=10)

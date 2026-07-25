@@ -156,7 +156,8 @@ class ExportTestCase(unittest.TestCase):
 
         with (
             patch(
-                "smartcatalog.ui.main_window.filedialog.askopenfilename",
+                "smartcatalog.ui.controllers.workflows_controller."
+                "filedialog.askopenfilename",
                 return_value=str(workbook_path),
             ),
             patch(

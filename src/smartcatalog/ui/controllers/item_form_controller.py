@@ -16,7 +16,7 @@ class ItemFormControllerMixin:
     - Persist selected item (used by other controllers)
 
     Assumes MainWindow provides:
-      - self._selected, self.state (db, selected_item_id, items_cache)
+      - self._selected, self.state (db, items_cache)
       - form vars: var_code, var_page, var_category, var_author, var_dimension, var_small_description,
                    var_shape, var_blade_tip, var_surface_treatment, var_material
       - self.description_excel_text (ScrolledText)

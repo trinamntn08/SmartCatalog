@@ -48,6 +48,11 @@ Tkinter views/controllers
 Services do not depend on Tkinter. Controllers retain file dialogs, message
 boxes, UI-thread dispatch, progress display, and refresh behavior.
 
+The canonical top-level UI callbacks are `on_import_pdf_catalog()`,
+`on_import_excel_catalog()`, `on_backup_data()`, and `on_export_catalog()`.
+Former callback names and private PDF-helper re-exports were removed after all
+tracked bindings and tests migrated to these canonical entry points.
+
 ## Persistence and paths
 
 Runtime data lives beside the source project or frozen executable under

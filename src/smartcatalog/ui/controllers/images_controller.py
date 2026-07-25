@@ -24,7 +24,7 @@ class ImagesControllerMixin:
     - Reorder image -> move selected image up/down
 
     Assumes MainWindow provides:
-      - self.state (db, catalog_pdf_path, items_cache, selected_item_id)
+      - self.state (db, catalog_pdf_path, items_cache)
       - self._selected (CatalogItem | None)
       - self.thumb_inner (Frame)
       - self.image_preview_label (Label)

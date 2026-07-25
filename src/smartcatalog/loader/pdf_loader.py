@@ -1,21 +1,10 @@
 # smartcatalog/loader/pdf_loader.py
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional, Callable, Any
-import io
-from PIL import Image
-
-import fitz  # PyMuPDF
 
 from smartcatalog.state import AppState
 from smartcatalog.loader.extract_item import extract_items_from_page
-from smartcatalog.loader.pdf_image_extractor import (
-    distance_between_rects as _distance_between_rects,
-    handle_jpeg2000_conversion as _handle_jpeg2000_conversion,
-    nearest_image_for_code_on_page as _nearest_image_for_code_on_page,
-    save_image_bytes_as_png as _save_image_bytes_as_png,
-)
 from smartcatalog.services.pdf_import import import_pdf_catalog
 
 
@@ -51,113 +40,6 @@ def _set_status(status_var, text: str) -> None:
             pass
 
     _ui_call(status_var, _do)
-
-
-def _extract_large_images(
-    doc: fitz.Document,
-    page: fitz.Page,
-    out_dir: Path,
-    min_side: int = 20,
-) -> list[str]:
-    """
-    Legacy extractor: returns list of image file paths.
-    (No bbox yet. We'll add bbox later without breaking call sites.)
-    """
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    paths: list[str] = []
-    seen_xref: set[int] = set()
-
-    for img in page.get_images(full=True):
-        xref = int(img[0])
-        if xref in seen_xref:
-            continue
-        seen_xref.add(xref)
-
-        info = doc.extract_image(xref)
-        w = int(info.get("width", 0) or 0)
-        h = int(info.get("height", 0) or 0)
-        if w < min_side or h < min_side:
-            continue
-
-        data = info["image"]
-
-        # ---- PIL processing ----
-        with Image.open(io.BytesIO(data)) as source:
-            im = source if source.mode == "RGBA" else source.convert("RGBA")
-            try:
-                with Image.new(
-                    "RGBA",
-                    im.size,
-                    (255, 255, 255, 255),
-                ) as white_bg:
-                    with Image.alpha_composite(
-                        white_bg,
-                        im,
-                    ).convert("RGB") as flattened:
-                        filename = f"xref{xref}.png"
-                        path = out_dir / filename
-                        flattened.save(path, format="PNG", quality=95)
-            finally:
-                if im is not source:
-                    im.close()
-
-        paths.append(str(path))
-
-    return paths
-
-
-def _register_page_assets_and_link_to_items(
-    *,
-    state: AppState,
-    conn,
-    pdf_path: Path,
-    page_no: int,
-    item_ids: list[int],
-    image_paths: list[str],
-    link_to_items: bool = True,
-) -> None:
-    """
-    New behavior (additive): store page images as assets and link to each item.
-    This does NOT change the UI yet, but enables future manual correction workflows.
-
-    We keep it tolerant:
-    - If DB doesn't have new methods (older code), it will just no-op.
-    """
-    if not image_paths:
-        return
-    if link_to_items and not item_ids:
-        return
-
-    # If user hasn't updated CatalogDB yet, don't crash
-    upsert_asset = getattr(state.db, "upsert_asset", None)
-    link_asset_to_item = getattr(state.db, "link_asset_to_item", None)
-    if not callable(upsert_asset) or (link_to_items and not callable(link_asset_to_item)):
-        return
-
-    # create assets once per page image, then link to all items on page
-    for img_path in image_paths:
-        asset_id = upsert_asset(
-            pdf_path=str(pdf_path),
-            page=page_no,
-            asset_path=str(img_path),
-            bbox=None,              # bbox not available yet in current extractor
-            source="extract",
-            sha256="",
-            conn=conn,
-        )
-
-        if link_to_items:
-            for item_id in item_ids:
-                link_asset_to_item(
-                    item_id=item_id,
-                    asset_id=asset_id,
-                    match_method="heuristic",  # currently: page-level heuristic
-                    score=None,
-                    verified=False,
-                    is_primary=False,
-                    conn=conn,
-                ) 
 
 
 def build_or_update_db_from_pdf(

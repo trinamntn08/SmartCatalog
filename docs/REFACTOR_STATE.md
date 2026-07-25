@@ -8,7 +8,7 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 Program status: COMPLETE
 Current branch: refactor/behavior-preserving-cleanup
 Last completed phase: Phase 14 — Full regression and frozen release validation
-Last checkpoint commit: this checkpoint commit (final checkpoint)
+Last checkpoint commit: this post-refactor cleanup commit
 Next permitted phase: None — behavior-preserving refactor complete
 Production refactoring permitted: NO; begin future changes as separately scoped work
 Reason: Characterization, refactor, automated, source, frozen, and user-acceptance gates are complete
@@ -37,10 +37,14 @@ Existing untracked local directories may include `build/`, `dist/`, `input/`, `o
 | 11 | `d867b11` | Backup failures made contextual, delayed error dispatch fixed, active PDF Pillow resources closed deterministically, and broad handlers audited |
 | 12 | `6abc6e0` | Unwired legacy modules and proven-unused direct dependencies removed; dispositions documented; disposable frozen build and startup validated |
 | 13 | This checkpoint commit | Workflow names clarified with compatibility delegates; obsolete private wrappers removed; UTF-8/mojibake audit automated without speculative text changes |
+| Post-refactor cleanup | This checkpoint commit | Proven-unreferenced helpers, temporary delegates/re-exports, unused state fields, and stale architecture guidance removed |
 
 Current automated baseline:
 
-- 88 tests pass, including resource-warning enforcement, service boundaries, failure/resource handling, legacy absence, canonical/compatibility workflow names, and strict UTF-8 source checks.
+- 85 tests pass, including resource-warning enforcement, service boundaries,
+  failure/resource handling, legacy absence, canonical workflow names, and
+  strict UTF-8 source checks. Three migration-only compatibility tests were
+  removed with their obsolete entry points during the post-refactor cleanup.
 - `python -m compileall -q run.py src tests` passes.
 - Importing `smartcatalog` and `smartcatalog.main` with the repository virtual environment passes.
 - `git diff --check` passes.
@@ -62,6 +66,8 @@ Known validation limitation:
   caller's working directory for PyInstaller outputs and rebuilt the
   repository's already-untracked `build/` and `dist/` contents. The script
   correction and incident are recorded in `docs/FINAL_VALIDATION.md`.
+- The post-refactor tracked-reference audit and retained/removal decisions are
+  recorded in `docs/POST_REFACTOR_CLEANUP.md`.
 
 ## Refactor completion
 

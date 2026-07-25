@@ -21,12 +21,12 @@ from smartcatalog.loader.excel_loader import (
     detect_excel_code_column,
     load_code_to_description_from_excel,
     load_code_to_vi_en_from_excel,
-    normalize_code_soft,
 )
 from smartcatalog.services.excel_catalog_import import import_excel_catalog
 from smartcatalog.ui.main_window import MainWindow
 from smartcatalog.utils.code_normalization import (
     build_unique_normalized_code_index,
+    normalize_code_soft,
 )
 from smartcatalog.utils.description_dictionary import (
     import_dictionary_into_db,
@@ -334,7 +334,8 @@ class ExcelImportWorkflowCharacterizationTests(unittest.TestCase):
 
         with (
             patch(
-                "smartcatalog.ui.main_window.filedialog.askopenfilename",
+                "smartcatalog.ui.controllers.workflows_controller."
+                "filedialog.askopenfilename",
                 return_value=str(workbook_path),
             ),
             patch("smartcatalog.ui.main_window.messagebox.showinfo"),

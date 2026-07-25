@@ -6,9 +6,6 @@ import re
 
 import pandas as pd
 
-from smartcatalog.utils.code_normalization import normalize_code_soft
-
-
 # -----------------------------
 # Code normalization / matching
 # -----------------------------

@@ -181,3 +181,11 @@ workflows were working correctly, completing the manual acceptance gate.
 | Phase | Commit | Automated result | Manual result | Notes |
 |---|---|---|---|---|
 | 14 | This checkpoint commit | Passed: compile, imports, 88 tests, disposable `build_exe.ps1` build, first-launch directory checks, restart smoke, and diff check | Passed: user confirmed source and frozen workflows operate correctly | Final architecture/build documentation updated; build output is now anchored to the script directory; known characterized PDF transaction behavior remains deferred |
+
+## Post-refactor cleanup
+
+On 2026-07-25, a tracked-reference audit removed obsolete private PDF helpers,
+temporary workflow delegates, a loader normalization re-export, and unused
+`AppState` fields. Migration-only tests were removed or redirected to canonical
+modules. The resulting baseline is 85 passing tests plus compile, focused
+import, and diff checks. See `docs/POST_REFACTOR_CLEANUP.md`.

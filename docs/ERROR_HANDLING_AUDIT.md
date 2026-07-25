@@ -25,7 +25,7 @@ Legacy/unwired modules listed in `AGENTS.md` were not changed.
 
 ## Deferred
 
-- Broad handlers in legacy/unwired modules remain for Phase 12 disposition.
+- The legacy/unwired modules covered by the Phase 12 disposition were removed.
 - Interactive failure dialogs, destroyed-widget races, locked Excel files, and
   desktop Excel validation remain manual checks.
 - The characterized PDF asset-link transaction bug is intentionally unchanged.

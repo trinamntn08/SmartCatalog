@@ -41,3 +41,4 @@ details.
 - [Refactor plan](docs/REFACTOR_PLAN.md)
 - [Refactor baseline and validation](docs/REFACTOR_BASELINE.md)
 - [Phase 14 validation evidence](docs/FINAL_VALIDATION.md)
+- [Post-refactor cleanup audit](docs/POST_REFACTOR_CLEANUP.md)

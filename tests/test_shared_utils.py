@@ -12,7 +12,6 @@ from tests import support as _test_support  # Ensures src/ is importable.
 from tests.support.fixtures import TemporaryProject, create_image_fixture
 
 from smartcatalog.domain.models import CatalogItem as DomainCatalogItem
-from smartcatalog.loader.excel_loader import normalize_code_soft as loader_normalize_code
 from smartcatalog.state import CatalogItem as StateCatalogItem
 from smartcatalog.ui.main_window import _safe_ui
 from smartcatalog.utils.code_normalization import (
@@ -42,21 +41,7 @@ class CatalogItemCompatibilityTests(unittest.TestCase):
         self.assertIsInstance(item, DomainCatalogItem)
 
 
-class CodeNormalizationCompatibilityTests(unittest.TestCase):
-    def test_all_active_entry_points_return_identical_results(self) -> None:
-        values = [
-            None,
-            "",
-            " 12-345-67 ",
-            "12 – 345 — 67",
-            "12 345 67",
-            "ABC / 123",
-        ]
-        for value in values:
-            with self.subTest(value=value):
-                expected = normalize_code_soft(value)
-                self.assertEqual(loader_normalize_code(value), expected)
-
+class CodeNormalizationTests(unittest.TestCase):
     def test_unique_index_removes_ambiguous_normalized_codes(self) -> None:
         codes = [
             "12-345-67",

@@ -27,9 +27,13 @@ The active modules are:
 - `src/smartcatalog/db/schema.py` and `path_mapper.py`: live SQLite schema/compatibility upgrades and portable database-path policy.
 - `src/smartcatalog/db/item_repository.py` and `asset_repository.py`: item mapping/CRUD and asset/link SQL, ordering, and mutation policy behind `CatalogDB`.
 - `src/smartcatalog/loader/extract_item.py`: performs coordinate- and regex-sensitive extraction of item fields from PDF pages.
-- `src/smartcatalog/loader/pdf_loader.py`: scans the selected PDF, upserts extracted items, finds the nearest image, stores it as an asset, and links it to the item.
+- `src/smartcatalog/loader/pdf_loader.py`: compatibility entry point that adapts Tk status/preview callbacks to the PDF-import service.
+- `src/smartcatalog/loader/pdf_image_extractor.py`: canonical PDF image-distance, extraction, conversion, and PNG-writing helpers.
 - `src/smartcatalog/loader/excel_loader.py`: tolerantly detects header rows, code columns, and Vietnamese/English description columns across workbooks.
-- `src/smartcatalog/ui/main_window.py`: composes the Tkinter UI and coordinates PDF import, Excel database updates, backup, and Excel export/post-processing.
+- `src/smartcatalog/services/pdf_import.py`, `excel_catalog_import.py`, `backup_service.py`, and `catalog_export.py`: UI-independent top-level workflows with typed results and explicit callbacks.
+- `src/smartcatalog/services/export_preflight.py` and `workbook_product_reader.py`: UI-independent export review preparation and tolerant workbook input reading.
+- `src/smartcatalog/ui/main_window.py`: composes the Tkinter UI and delegates top-level workflows to controllers.
+- `src/smartcatalog/ui/controllers/workflows_controller.py`: owns Tk dialogs, background execution, UI dispatch, and the canonical PDF/Excel/backup/export callbacks.
 - `src/smartcatalog/ui/controllers/items_controller.py`: item list filtering, sorting, selection, and search behavior.
 - `src/smartcatalog/ui/controllers/item_form_controller.py`: dirty-state handling, item add/edit/delete/save, validation state, and synchronization of UI image order to asset links.
 - `src/smartcatalog/ui/controllers/images_controller.py`: manual image add/remove/rotate, thumbnails, previews, drag reorder, and image provenance display.
@@ -41,7 +45,7 @@ The active modules are:
 - `src/smartcatalog/utils/code_normalization.py`, `filename_utils.py`, `hashing.py`, `text_normalization.py`, `ui_dispatch.py`, and `workbook_images.py`: shared, side-effect-free policies extracted from active UI/loader code; compatibility wrappers remain at older entry points where needed.
 - `src/smartcatalog/ui/widgets/scrollable_frame.py`: reusable Tkinter scrollable frame.
 
-`MainWindow` currently mixes in `ItemsControllerMixin`, `CandidatesControllerMixin`, `ImagesControllerMixin`, and `ItemFormControllerMixin`. Keep reusable panel behavior in those controllers, persistence in `CatalogDB`, parsing in loaders, and leave `main_window.py` primarily for layout and workflow coordination.
+`MainWindow` currently mixes in `ItemsControllerMixin`, `CandidatesControllerMixin`, `ImagesControllerMixin`, `ItemFormControllerMixin`, and `WorkflowsControllerMixin`. Keep reusable panel behavior in those controllers, UI-independent workflows in services, persistence in `CatalogDB`, parsing in loaders, and leave `main_window.py` primarily for layout and widget composition.
 
 ## Removed legacy code
 

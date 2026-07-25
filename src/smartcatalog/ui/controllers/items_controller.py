@@ -16,7 +16,7 @@ class ItemsControllerMixin:
     - handle selection and reload form
 
     Assumes MainWindow provides:
-      - self.state (db, items_cache, selected_item_id)
+      - self.state (db, items_cache)
       - self.items_tree (Treeview)
       - self.search_var (StringVar)
       - self._selected (CatalogItem | None)

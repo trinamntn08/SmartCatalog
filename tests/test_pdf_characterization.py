@@ -16,13 +16,7 @@ from tests.support.fixtures import TemporaryProject
 
 from smartcatalog.db.catalog_db import CatalogDB
 from smartcatalog.loader.extract_item import CatalogItem, extract_items_from_page
-from smartcatalog.loader.pdf_loader import (
-    _distance_between_rects,
-    _handle_jpeg2000_conversion,
-    _nearest_image_for_code_on_page,
-    _save_image_bytes_as_png,
-    build_or_update_db_from_pdf,
-)
+from smartcatalog.loader.pdf_loader import build_or_update_db_from_pdf
 from smartcatalog.loader.pdf_image_extractor import (
     distance_between_rects,
     handle_jpeg2000_conversion,
@@ -138,7 +132,7 @@ def _nearest_image_bytes(path: Path, *, page_index: int, code: str) -> bytes:
         item = next(
             item for item in extract_items_from_page(page) if item.code == code
         )
-        nearest = _nearest_image_for_code_on_page(page, fitz.Rect(item.bbox))
+        nearest = nearest_image_for_code_on_page(page, fitz.Rect(item.bbox))
         if nearest is None:
             raise AssertionError(f"No nearest image found for fixture code {code}")
         return nearest[0]
@@ -248,15 +242,9 @@ class PDFFieldExtractionCharacterizationTests(PDFTestCase):
 
 
 class PDFImageCharacterizationTests(PDFTestCase):
-    def test_loader_reexports_extracted_image_helpers(self) -> None:
-        self.assertIs(_distance_between_rects, distance_between_rects)
-        self.assertIs(_handle_jpeg2000_conversion, handle_jpeg2000_conversion)
-        self.assertIs(_nearest_image_for_code_on_page, nearest_image_for_code_on_page)
-        self.assertIs(_save_image_bytes_as_png, save_image_bytes_as_png)
-
     def test_distance_uses_rectangle_centers(self) -> None:
         self.assertEqual(
-            _distance_between_rects(
+            distance_between_rects(
                 fitz.Rect(0, 0, 10, 10),
                 fitz.Rect(30, 40, 40, 50),
             ),
@@ -280,7 +268,7 @@ class PDFImageCharacterizationTests(PDFTestCase):
 
         reopened = fitz.open(path)
         try:
-            result = _nearest_image_for_code_on_page(
+            result = nearest_image_for_code_on_page(
                 reopened[0],
                 fitz.Rect(130, 200, 200, 220),
             )
@@ -308,7 +296,7 @@ class PDFImageCharacterizationTests(PDFTestCase):
         document = fitz.open(path)
         try:
             item = extract_items_from_page(document[0])[0]
-            result = _nearest_image_for_code_on_page(
+            result = nearest_image_for_code_on_page(
                 document[0],
                 fitz.Rect(item.bbox),
             )
@@ -318,10 +306,10 @@ class PDFImageCharacterizationTests(PDFTestCase):
 
     def test_conversion_and_png_save_preserve_current_output_contract(self) -> None:
         source = png_bytes((10, 20, 30, 120), size=(16, 12))
-        passthrough, extension = _handle_jpeg2000_conversion(source, "png")
-        converted, converted_extension = _handle_jpeg2000_conversion(source, "jp2")
+        passthrough, extension = handle_jpeg2000_conversion(source, "png")
+        converted, converted_extension = handle_jpeg2000_conversion(source, "jp2")
         output = self.project.path("converted", "output.png")
-        _save_image_bytes_as_png(source, output)
+        save_image_bytes_as_png(source, output)
 
         self.assertIs(passthrough, source)
         self.assertEqual(extension, "png")
