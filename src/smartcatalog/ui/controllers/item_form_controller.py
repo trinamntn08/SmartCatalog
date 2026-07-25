@@ -421,7 +421,7 @@ class ItemFormControllerMixin:
             pdf_path = ""
 
         # Create a draft item (not saved yet) and clear all fields.
-        from smartcatalog.state import CatalogItem
+        from smartcatalog.domain.models import CatalogItem
 
         draft = CatalogItem(
             id=0,

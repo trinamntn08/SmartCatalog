@@ -6,26 +6,13 @@ import re
 
 import pandas as pd
 
+from smartcatalog.utils.code_normalization import normalize_code_soft
+
 
 # -----------------------------
 # Code normalization / matching
 # -----------------------------
 _CODE_LIKE_RE = re.compile(r"^\s*\d{2}\s*[-–—]?\s*\d{3}\s*[-–—]?\s*\d{2}\s*$")
-
-
-def normalize_code_soft(s: str) -> str:
-    """
-    Normalize common catalog code formatting:
-    - trim
-    - convert en-dash/em-dash to '-'
-    - remove spaces
-    """
-    if s is None:
-        return ""
-    s = str(s).strip()
-    s = s.replace("–", "-").replace("—", "-")
-    s = re.sub(r"\s+", "", s)
-    return s
 
 
 def _clean_cell_text(v) -> str:

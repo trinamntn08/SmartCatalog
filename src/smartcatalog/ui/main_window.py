@@ -15,7 +15,8 @@ import shutil
 import datetime
 if TYPE_CHECKING:
     from PIL import Image, ImageTk
-from smartcatalog.state import AppState, CatalogItem
+from smartcatalog.domain.models import CatalogItem
+from smartcatalog.state import AppState
 from smartcatalog.loader.pdf_loader import build_or_update_db_from_pdf
 from smartcatalog.ui.widgets.scrollable_frame import ScrollableFrame
 from smartcatalog.ui.controllers.candidates_controller import CandidatesControllerMixin
@@ -32,80 +33,44 @@ from smartcatalog.utils.post_processing import (
     apply_post_processing_branding,
     write_post_processing_sheet,
 )
+from smartcatalog.utils.code_normalization import (
+    build_unique_normalized_code_index,
+    normalize_code_soft,
+)
+from smartcatalog.utils.filename_utils import sanitize_filename
+from smartcatalog.utils.hashing import sha256_bytes
+from smartcatalog.utils.text_normalization import normalize_header_text
+from smartcatalog.utils.ui_dispatch import dispatch_to_tk
+from smartcatalog.utils.workbook_images import get_image_anchor_row, image_to_pil
 
-import re
-import hashlib
 from bisect import bisect_right
 def _normalize_code_soft(s: str) -> str:
-    if s is None:
-        return ""
-    s = str(s).strip()
-    s = s.replace("–", "-").replace("—", "-")
-    s = re.sub(r"\s+", "", s)  # remove all spaces
-    return s
+    return normalize_code_soft(s)
 
 def _normalize_header_text(s: str) -> str:
-    s = str(s or "").strip().lower()
-    s = s.replace("\n", " ")
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    return normalize_header_text(s)
 
 
 def _sanitize_filename(s: str) -> str:
-    s = re.sub(r"[^A-Za-z0-9_-]+", "_", str(s or "").strip())
-    s = s.strip("_")
-    return s or "item"
+    return sanitize_filename(s)
 
 
 def _get_image_anchor_row(img) -> Optional[int]:
-    try:
-        anchor = getattr(img, "anchor", None)
-        if anchor is None:
-            return None
-        if hasattr(anchor, "_from") and getattr(anchor._from, "row", None) is not None:
-            return int(anchor._from.row) + 1
-        if getattr(anchor, "row", None) is not None:
-            return int(anchor.row) + 1
-    except Exception:
-        return None
-    return None
+    return get_image_anchor_row(img)
 
 
 def _image_to_pil(img) -> Optional[Image.Image]:
-    from PIL import Image
-    try:
-        data = img._data()
-        return Image.open(io.BytesIO(data))
-    except Exception:
-        pass
-    try:
-        ref = getattr(img, "ref", None)
-        if ref:
-            p = Path(ref)
-            if p.exists():
-                return Image.open(p)
-    except Exception:
-        return None
-    return None
+    return image_to_pil(img)
 
 def _build_db_code_index(db_codes: list[str]) -> dict[str, str]:
     """
     normalized_code -> original_db_code
     only keep unique mappings to avoid wrong updates.
     """
-    buckets: dict[str, list[str]] = {}
-    for c in db_codes:
-        key = _normalize_code_soft(c)
-        buckets.setdefault(key, []).append(c)
-
-    index: dict[str, str] = {}
-    for k, vals in buckets.items():
-        if len(vals) == 1:
-            index[k] = vals[0]
-    return index
+    return build_unique_normalized_code_index(db_codes)
 
 def _safe_ui(root: tk.Misc, fn: Callable[[], None]) -> None:
-    root.after(0, fn)
+    dispatch_to_tk(root, fn)
 
 
 class MainWindow(
@@ -1376,7 +1341,7 @@ class MainWindow(
                             buf = io.BytesIO()
                             pil.convert("RGBA").save(buf, format="PNG")
                             data = buf.getvalue()
-                            img_hash = hashlib.sha256(data).hexdigest()
+                            img_hash = sha256_bytes(data)
 
                             code_hashes = per_code_hashes.setdefault(excel_code, set())
                             if img_hash in code_hashes:

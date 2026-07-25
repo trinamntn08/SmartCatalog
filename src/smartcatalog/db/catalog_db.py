@@ -6,7 +6,7 @@ import datetime
 from pathlib import Path
 from typing import Optional, List, Tuple
 
-from smartcatalog.state import CatalogItem
+from smartcatalog.domain.models import CatalogItem
 
 
 SCHEMA_SQL = """

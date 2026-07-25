@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 import unicodedata
 import re
-from smartcatalog.state import CatalogItem
+from smartcatalog.domain.models import CatalogItem
 
 
 class ItemsControllerMixin:

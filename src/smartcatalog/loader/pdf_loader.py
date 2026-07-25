@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional, Callable, Any
-import hashlib
 import io
 import math
 from PIL import Image
@@ -12,6 +11,7 @@ import fitz  # PyMuPDF
 
 from smartcatalog.state import AppState
 from smartcatalog.loader.extract_item import extract_items_from_page
+from smartcatalog.utils.hashing import sha256_bytes
 
 
 def _ui_call(widget_or_root: Any, fn: Callable[[], None]) -> None:
@@ -319,7 +319,7 @@ def build_or_update_db_from_pdf(
                     if nearest:
                         image_bytes, image_ext, img_rect = nearest
                         image_bytes, image_ext = _handle_jpeg2000_conversion(image_bytes, image_ext)
-                        sha = hashlib.sha256(image_bytes).hexdigest()
+                        sha = sha256_bytes(image_bytes)
                         safe_code = it.code.replace("/", "_")
                         out_dir = state.assets_dir / "pdf_import" / f"p{page_no:04d}"
                         out_path = out_dir / f"{safe_code}_{sha[:12]}.png"

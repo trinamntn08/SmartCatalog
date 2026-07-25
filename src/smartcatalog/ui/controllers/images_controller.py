@@ -4,7 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import shutil
-import hashlib
 import time
 from typing import Optional
 
@@ -12,6 +11,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from PIL import Image, ImageTk
+from smartcatalog.utils.hashing import sha256_text
 
 
 class ImagesControllerMixin:
@@ -281,7 +281,7 @@ class ImagesControllerMixin:
                 pdf_stem = Path(pdf_path).stem if pdf_path else "pdf"
                 safe_stem = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in pdf_stem)
                 pdf_key_src = pdf_path or "nopdf"
-                pdf_key = hashlib.sha256(pdf_key_src.encode("utf-8")).hexdigest()[:8]
+                pdf_key = sha256_text(pdf_key_src)[:8]
                 xref = int(time.time() * 1000)
 
                 base = f"{safe_stem}_{pdf_key}_page{page:04d}_xref{xref}"

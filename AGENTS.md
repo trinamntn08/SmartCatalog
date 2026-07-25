@@ -21,7 +21,8 @@ The active modules are:
 
 - `run.py`: resolves the source or frozen application root, adds the root and `src/` to `sys.path`, and starts the UI.
 - `src/smartcatalog/main.py`: creates the Tk root, icon and splash screen, application state, database wrapper, and main window.
-- `src/smartcatalog/state.py`: defines `CatalogItem` and `AppState`, resolves runtime paths, creates data directories, and persists the selected catalog PDF.
+- `src/smartcatalog/domain/models.py`: defines the active persisted/UI `CatalogItem` model. `state.py` re-exports it for compatibility.
+- `src/smartcatalog/state.py`: defines `AppState`, resolves runtime paths, creates data directories, and persists the selected catalog PDF.
 - `src/smartcatalog/db/catalog_db.py`: owns the live SQLite schema, compatibility column upgrades, path conversion, item CRUD, asset CRUD, and item/asset links.
 - `src/smartcatalog/loader/extract_item.py`: performs coordinate- and regex-sensitive extraction of item fields from PDF pages.
 - `src/smartcatalog/loader/pdf_loader.py`: scans the selected PDF, upserts extracted items, finds the nearest image, stores it as an asset, and links it to the item.
@@ -35,6 +36,7 @@ The active modules are:
 - `src/smartcatalog/ui/export_review_dialog.py`: pre-export review and editing for missing VI/EN descriptions, images, and unmatched codes.
 - `src/smartcatalog/utils/description_dictionary.py`: seeds only empty database description fields from `config/database/dictionary.csv`.
 - `src/smartcatalog/utils/post_processing.py`: builds the formatted post-processing worksheet, inserts product images, then edits the XLSX ZIP/XML package to install the header image.
+- `src/smartcatalog/utils/code_normalization.py`, `filename_utils.py`, `hashing.py`, `text_normalization.py`, `ui_dispatch.py`, and `workbook_images.py`: shared, side-effect-free policies extracted from active UI/loader code; compatibility wrappers remain at older entry points where needed.
 - `src/smartcatalog/ui/widgets/scrollable_frame.py`: reusable Tkinter scrollable frame.
 
 `MainWindow` currently mixes in `ItemsControllerMixin`, `CandidatesControllerMixin`, `ImagesControllerMixin`, and `ItemFormControllerMixin`. Keep reusable panel behavior in those controllers, persistence in `CatalogDB`, parsing in loaders, and leave `main_window.py` primarily for layout and workflow coordination.

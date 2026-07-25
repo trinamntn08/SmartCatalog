@@ -8,6 +8,8 @@ import shutil
 import json
 import sys
 
+from smartcatalog.domain.models import CatalogItem
+
 
 def get_app_dir() -> Path:
     """
@@ -18,29 +20,6 @@ def get_app_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parents[2]
-
-
-@dataclass
-class CatalogItem:
-    id: int
-    code: str
-    description: str
-    description_excel: str
-    description_vietnames_from_excel: str
-    pdf_path: str
-    page: Optional[int]
-    images: List[str]
-    validated: bool = False
-    validated_at: str = ""
-
-    category: str = ""
-    author: str = ""
-    dimension: str = ""
-    small_description: str = ""
-    shape: str = ""
-    blade_tip: str = ""
-    surface_treatment: str = ""
-    material: str = ""
 
 
 @dataclass(slots=True)

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import io
 import threading
-import hashlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +13,7 @@ from tkinter import ttk, messagebox
 
 from PIL import Image, ImageTk
 import fitz  # PyMuPDF
+from smartcatalog.utils.hashing import sha256_text
 
 
 @dataclass
@@ -454,7 +454,7 @@ class CandidatesControllerMixin:
             # Include a pdf-specific key to avoid collisions across different PDFs.
             pdf_stem = Path(pdf_path).stem or "pdf"
             safe_stem = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in pdf_stem)
-            pdf_key = hashlib.sha256(pdf_path.encode("utf-8")).hexdigest()[:8]
+            pdf_key = sha256_text(pdf_path)[:8]
             filename = f"{safe_stem}_{pdf_key}_page{img.page_index + 1:04d}_xref{img.xref}.{img.ext}"
             path = assets_dir / filename
 
