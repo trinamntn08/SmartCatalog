@@ -6,12 +6,12 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 
 ```text
 Program status: IN PROGRESS
-Current branch: master
-Last completed phase: Phase 3 — Characterize PDF and image behavior
-Last checkpoint commit: current HEAD (Checkpoint 3)
-Next permitted phase: Phase 4 — Characterize export and UI workflows
-Production refactoring permitted: NO
-Reason: Phase 4 characterization gate is not complete
+Current branch: refactor/behavior-preserving-cleanup
+Last completed phase: Phase 4 — Characterize export and UI workflows
+Last checkpoint commit: current HEAD (Checkpoint 4)
+Next permitted phase: Phase 5 — Extract pure shared utilities
+Production refactoring permitted: YES, within the next permitted phase only
+Reason: Characterization gates 0–4 are complete
 Tracked worktree expected: clean
 Last updated: 2026-07-25
 ```
@@ -26,11 +26,12 @@ Existing untracked local directories may include `build/`, `dist/`, `input/`, `o
 | 0 | `4926220` | Disposable test harness, generated fixtures, snapshots, environment baseline, and manual checklist |
 | 1 | `3326d1e` | Database schema, migration, mapping, path, item, asset, ordering, and transaction behavior characterized |
 | 2 | `5d6fa34` | Excel parsing, matching, embedded-image import, and dictionary fill-only behavior characterized |
-| 3 | Current HEAD (Checkpoint 3) | PDF field extraction, page numbering, image selection, import skip policy, repeat behavior, and resource closure characterized |
+| 3 | `fdadc52` | PDF field extraction, page numbering, image selection, import skip policy, repeat behavior, and resource closure characterized |
+| 4 | Current HEAD (Checkpoint 4) | Export matching, preflight, descriptions, images, workbook structure, branding, and package relationships characterized |
 
 Current automated baseline:
 
-- 50 tests pass, including resource-warning enforcement.
+- 60 tests pass, including resource-warning enforcement.
 - `python -m compileall -q run.py src tests` passes.
 - Importing `smartcatalog` and `smartcatalog.main` with the repository virtual environment passes.
 - `git diff --check` passes.
@@ -41,35 +42,34 @@ Known validation limitation:
 - The interactive GUI smoke test has not been run during the automated checkpoints. Use backed-up or disposable runtime data when it is performed.
 - Generated PDFs cover reproducible single- and two-column layouts, but representative real catalog layouts remain a manual-only validation risk.
 - Current PDF import writes the extracted PNG file but rolls back the asset/link rows because the caller-owned SQLite connection is not committed after linking. Phase 3 characterizes this existing behavior; fix it only as a separate approved bug change.
+- Phase 4 reopens generated workbooks with openpyxl and validates their XLSX/XML relationships, but desktop Excel visual inspection was not available in the automated checkpoint.
 
-## Next work: Phase 4 only
+## Next work: Phase 5 only
 
-Follow the full Phase 4 definition in `docs/REFACTOR_PLAN.md`.
+Follow the full Phase 5 definition in `docs/REFACTOR_PLAN.md`.
 
-Phase 4 may add tests, semantic workbook snapshots, and headless UI workflow adapters for:
+Phase 5 may introduce tested, side-effect-free shared modules for:
 
-- export product-code and quantity input;
-- exact and normalized database matching;
-- missing-code and missing-description reporting;
-- VI/EN selection and fallback;
-- missing-data highlighting;
-- image order and rotation behavior;
-- output sheet replacement, cells, merges, dimensions, and images;
-- branding, content types, relationships, VML, and header/footer XML;
-- export preflight review decisions where headless characterization is reliable.
+- code and Excel-header normalization;
+- unique normalized-code index building;
+- filename sanitization;
+- image anchor lookup and content hashing;
+- UI-thread dispatch;
+- a single active domain model with compatibility re-exports only where proven safe.
 
-Phase 4 must not:
+Phase 5 must not:
 
-- change production export, workbook, or UI behavior;
+- change normalization, matching, filename, image, or dispatch behavior;
 - fix the recorded PDF asset-link transaction bug;
-- begin utility extraction or other structural refactoring;
-- overwrite live/runtime workbooks;
-- proceed to Phase 5 before Phase 4 tests, validation, state update, and checkpoint commit are complete.
+- consolidate helpers whose behavior is not proven equivalent;
+- mix active utilities with legacy/unwired implementations;
+- begin database splitting or service extraction;
+- proceed to Phase 6 before Phase 5 tests, validation, state update, and checkpoint commit are complete.
 
-Suggested Phase 4 checkpoint commit:
+Suggested Phase 5 checkpoint commit:
 
 ```text
-test: characterize export and UI behavior
+refactor: extract shared pure utilities
 ```
 
 ## New-session resume procedure
@@ -86,7 +86,7 @@ At the beginning of a new session:
    git log -5 --oneline --decorate
    ```
 
-5. Confirm that the documented Checkpoint 3 commit or a later checkpoint is in the current branch history.
+5. Confirm that the documented Checkpoint 4 commit or a later checkpoint is in the current branch history.
 6. Preserve all unrelated tracked and untracked work.
 7. Run the current automated baseline before editing:
 

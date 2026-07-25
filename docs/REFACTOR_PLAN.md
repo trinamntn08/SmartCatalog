@@ -97,7 +97,7 @@ Approved to start next phase: YES | NO
 | 1 | Characterize database behavior | Complete | Checkpoint 1 commit |
 | 2 | Characterize Excel and dictionary behavior | Complete | Checkpoint 2 commit |
 | 3 | Characterize PDF and image behavior | Complete | Checkpoint 3 commit |
-| 4 | Characterize export and UI workflows | Not started | — |
+| 4 | Characterize export and UI workflows | Complete | Checkpoint 4 commit |
 | 5 | Extract pure shared utilities | Not started | — |
 | 6 | Split database internals behind `CatalogDB` | Not started | — |
 | 7 | Extract Excel database-import service | Not started | — |
