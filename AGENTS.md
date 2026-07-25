@@ -154,6 +154,8 @@ Do not edit generated `build/` or `dist/` contents. Change the spec or build scr
 
 ## Change workflow
 
+For the behavior-preserving cleanup program, follow `docs/REFACTOR_PLAN.md`. Its phases, validation gates, and checkpoint commits are mandatory; do not skip ahead or combine phases.
+
 Before editing:
 
 1. Run `git status --short` and preserve all unrelated tracked and untracked work.
