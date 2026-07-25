@@ -8,6 +8,7 @@ from typing import Optional
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from smartcatalog.db.catalog_db import CatalogDB
 from smartcatalog.loader.pdf_loader import build_or_update_db_from_pdf
 from smartcatalog.services.backup_service import backup_catalog
 from smartcatalog.services.catalog_export import CatalogExportOptions, export_catalog
@@ -27,6 +28,66 @@ def _safe_ui(root: tk.Misc, fn) -> None:
 
 
 class WorkflowsControllerMixin:
+    def on_select_database(self) -> None:
+        """Switch to an existing SQLite catalog for this application session."""
+        current_path = Path(self.state.db_path)
+        selected = filedialog.askopenfilename(
+            title="Chọn CSDL SmartCatalog đã sao lưu",
+            initialdir=str(current_path.parent),
+            filetypes=[
+                ("Cơ sở dữ liệu SQLite", "*.db *.sqlite *.sqlite3"),
+                ("Tất cả tệp", "*.*"),
+            ],
+        )
+        if not selected:
+            return
+
+        selected_path = Path(selected).resolve()
+        self._switch_database(selected_path)
+
+    def _switch_database(self, selected_path: Path) -> None:
+        current_path = Path(self.state.db_path).resolve()
+        selected_path = Path(selected_path).resolve()
+        if selected_path == current_path:
+            self._set_status(f"Đang sử dụng CSDL: {selected_path}")
+            return
+
+        if bool(self._busy.get()):
+            messagebox.showwarning(
+                "Ứng dụng đang bận",
+                "Vui lòng đợi thao tác hiện tại hoàn tất trước khi đổi cơ sở dữ liệu.",
+            )
+            return
+
+        handler = getattr(self, "_handle_unsaved_before_switch", None)
+        if callable(handler) and not bool(handler()):
+            return
+
+        try:
+            selected_path.parent.mkdir(parents=True, exist_ok=True)
+            selected_db = CatalogDB(selected_path, data_dir=self.state.data_dir)
+        except Exception as exc:
+            messagebox.showerror(
+                "Không thể mở CSDL",
+                f"Không thể mở cơ sở dữ liệu:\n{selected_path}\n\n{exc}",
+            )
+            return
+
+        self.state.db_path = selected_path
+        self.state.db = selected_db
+        self.state.items_cache = []
+        self.state.catalog_pdf_path = None
+        self._selected = None
+        self._selected_snapshot = None
+        try:
+            self.items_tree.selection_remove(self.items_tree.selection())
+            self._clear_item_form()
+        except Exception:
+            pass
+        self.refresh_items()
+        self._update_pdf_tools_label()
+        self._set_status(f"Đã mở CSDL: {selected_path}")
+
     def on_import_pdf_catalog(self) -> None:
         """
         Show existing catalog PDFs, ask whether to load a new one, then build/update DB.
@@ -188,7 +249,6 @@ class WorkflowsControllerMixin:
                     database_path=db_path,
                     assets_dir=self.state.assets_dir,
                     catalog_pdfs_dir=self.state.data_dir / "catalog_pdfs",
-                    settings_path=self.state.settings_path,
                     backup_dir=backup_dir,
                 )
 

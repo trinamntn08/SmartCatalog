@@ -23,7 +23,7 @@ class BackupServiceTests(unittest.TestCase):
         self.project.__enter__()
         self.addCleanup(self.project.__exit__, None, None, None)
 
-    def test_backup_copies_database_assets_pdfs_and_settings(self) -> None:
+    def test_backup_copies_database_assets_and_pdfs(self) -> None:
         database = self.project.path("runtime", "sql", "catalog.db")
         database.parent.mkdir(parents=True)
         connection = sqlite3.connect(database)
@@ -40,14 +40,10 @@ class BackupServiceTests(unittest.TestCase):
         pdfs = self.project.path("runtime", "catalog_pdfs")
         pdfs.mkdir(parents=True)
         (pdfs / "catalog.pdf").write_bytes(b"pdf")
-        settings = self.project.path("runtime", "settings.json")
-        settings.write_text('{"selected": true}', encoding="utf-8")
-
         manifest = backup_catalog(
             database_path=database,
             assets_dir=assets,
             catalog_pdfs_dir=pdfs,
-            settings_path=settings,
             backup_dir=self.project.path("backup"),
         )
 
@@ -61,10 +57,6 @@ class BackupServiceTests(unittest.TestCase):
             (manifest.catalog_pdfs_path / "catalog.pdf").read_bytes(),
             b"pdf",
         )
-        self.assertEqual(
-            manifest.settings_path.read_text(encoding="utf-8"),
-            '{"selected": true}',
-        )
 
     def test_backup_manifest_marks_missing_optional_sources(self) -> None:
         database = self.project.path("catalog.db")
@@ -75,14 +67,12 @@ class BackupServiceTests(unittest.TestCase):
             database_path=database,
             assets_dir=self.project.path("missing-assets"),
             catalog_pdfs_dir=self.project.path("missing-pdfs"),
-            settings_path=self.project.path("missing-settings.json"),
             backup_dir=self.project.path("backup"),
         )
 
         self.assertTrue(manifest.database_path.is_file())
         self.assertIsNone(manifest.assets_path)
         self.assertIsNone(manifest.catalog_pdfs_path)
-        self.assertIsNone(manifest.settings_path)
 
     def test_missing_database_error_includes_source_path(self) -> None:
         missing_database = self.project.path("missing", "catalog.db")
@@ -95,7 +85,6 @@ class BackupServiceTests(unittest.TestCase):
                 database_path=missing_database,
                 assets_dir=self.project.path("assets"),
                 catalog_pdfs_dir=self.project.path("catalog_pdfs"),
-                settings_path=self.project.path("settings.json"),
                 backup_dir=self.project.path("backup"),
             )
 
@@ -116,7 +105,6 @@ class BackupServiceTests(unittest.TestCase):
                 db_path=database,
                 assets_dir=self.project.path("assets"),
                 data_dir=self.project.path(),
-                settings_path=self.project.path("settings.json"),
             ),
             _run_bg=lambda _title, work: work(),
         )

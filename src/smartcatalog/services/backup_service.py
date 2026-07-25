@@ -12,7 +12,6 @@ class BackupManifest:
     database_path: Path
     assets_path: Path | None
     catalog_pdfs_path: Path | None
-    settings_path: Path | None
 
 
 class BackupError(RuntimeError):
@@ -24,7 +23,6 @@ def backup_catalog(
     database_path: str | Path,
     assets_dir: str | Path,
     catalog_pdfs_dir: str | Path,
-    settings_path: str | Path,
     backup_dir: str | Path,
 ) -> BackupManifest:
     source_database = Path(database_path)
@@ -87,22 +85,9 @@ def backup_catalog(
                 f"to '{pdfs_destination}': {exc}"
             ) from exc
 
-    settings_source = Path(settings_path)
-    settings_destination: Path | None = None
-    if settings_source.exists():
-        settings_destination = destination / "settings.json"
-        try:
-            shutil.copy2(settings_source, settings_destination)
-        except OSError as exc:
-            raise BackupError(
-                f"Could not back up settings '{settings_source}' "
-                f"to '{settings_destination}': {exc}"
-            ) from exc
-
     return BackupManifest(
         backup_dir=destination,
         database_path=backup_database,
         assets_path=assets_destination,
         catalog_pdfs_path=pdfs_destination,
-        settings_path=settings_destination,
     )

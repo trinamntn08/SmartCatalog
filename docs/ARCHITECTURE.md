@@ -60,17 +60,16 @@ tracked bindings and tests migrated to these canonical entry points.
 ## Persistence and paths
 
 Runtime data lives beside the source project or frozen executable under
-`config/database/`. At startup, `AppState` reads `settings.json` and resolves
-its `database_path` relative to that directory (or accepts an explicitly
-configured absolute path) before `CatalogDB` is created. First launch and
-legacy settings bootstrap the portable default `sql/catalog.db`.
+`config/database/`. At startup, `AppState` opens the portable default
+`sql/catalog.db`. The **Tải CSDL đã sao lưu...** toolbar button can switch to
+another existing SQLite catalog for the current application session.
 
 Asset and PDF paths below the data directory are stored relatively and
 resolved by `CatalogDB`; special tokens such as `excel:...` remain unchanged.
 Product code is the stable unique business key.
 
 The portable catalog unit is the complete `config/database/` directory:
-`settings.json`, the configured SQLite file, `assets/`, and `catalog_pdfs/`.
+the SQLite file, `assets/`, and `catalog_pdfs/`.
 Moving that directory with the application preserves the relative database,
 image, and PDF references. Copying only the SQLite file does not include its
 external images or source PDFs.

@@ -8,10 +8,13 @@ automation.
 
 SmartCatalog is a Windows-first Python/Tkinter desktop application for importing, reviewing, editing, and exporting a medical product catalog. Product data and images come mainly from layout-specific PDF catalogs and flexible Excel workbooks. The application persists its working catalog in SQLite and writes formatted Excel output.
 
-- Work only in the tracked application, build, documentation, and explicitly requested migration-script areas.
+- Work only in the tracked application, tests, build configuration, and
+  documentation unless the user explicitly places another area in scope.
 - `to_integrate/` is outside the application and outside review scope. Do not read it, edit it, import from it, copy code from it, or add fallbacks to it.
 - Treat `config/`, `input/`, `output/`, `build/`, and `dist/` as local, generated, or user-data areas. Do not inspect or modify their contents unless the task specifically requires it and the data is safely backed up.
-- Never delete, recreate, or casually rewrite `config/database/sql/catalog.db`, imported PDFs, settings, dictionaries, branding, or asset directories.
+- Never delete, recreate, or casually rewrite the configured catalog database,
+  imported PDFs, `settings.json`, branding, or asset directories. Runtime-data
+  work requires explicit scope and a verified backup or disposable copy.
 - The UI and catalog data are largely Vietnamese. Preserve Unicode exactly and save source and documentation as UTF-8. Some existing source strings/comments are visibly mojibake; do not perform speculative or mass encoding conversion.
 - Preserve both source execution and frozen-executable behavior.
 
@@ -26,7 +29,9 @@ The active modules are:
 - `run.py`: resolves the source or frozen application root, adds the root and `src/` to `sys.path`, and starts the UI.
 - `src/smartcatalog/main.py`: creates the Tk root, icon and splash screen, application state, database wrapper, and main window.
 - `src/smartcatalog/domain/models.py`: defines the active persisted/UI `CatalogItem` model. `state.py` re-exports it for compatibility.
-- `src/smartcatalog/state.py`: defines `AppState`, resolves runtime paths, creates data directories, and persists the selected catalog PDF.
+- `src/smartcatalog/state.py`: defines `AppState`, creates the runtime data
+  layout, loads the authoritative database path and selected catalog PDF from
+  `settings.json`, and upgrades legacy settings with a portable default.
 - `src/smartcatalog/db/catalog_db.py`: compatibility facade for connection lifecycle, public persistence calls, and existing commit policy.
 - `src/smartcatalog/db/schema.py` and `path_mapper.py`: live SQLite schema/compatibility upgrades and portable database-path policy.
 - `src/smartcatalog/db/item_repository.py` and `asset_repository.py`: item mapping/CRUD and asset/link SQL, ordering, and mutation policy behind `CatalogDB`.
@@ -79,6 +84,10 @@ config/database/
     └── manual_import/
 ```
 
+The tree shows the first-launch default. The actual SQLite file is selected by
+`database_path` in `settings.json` and may use another relative or absolute
+location.
+
 The live SQLite entities are:
 
 - `items`: unique product `code`, descriptions, extracted fields, source PDF/page, and validation status/time.
@@ -88,6 +97,13 @@ The live SQLite entities are:
 Persistence rules:
 
 - Product code is the stable unique business key. Reuse the relevant existing normalization behavior and avoid silently merging ambiguous normalized codes.
+- `settings.json` is the source of truth for the SQLite `database_path`.
+  Relative values resolve from `config/database/`; the first-launch and legacy
+  default is `sql/catalog.db`. `AppState.db_path`, never a separately
+  hard-coded catalog path, must be passed to `CatalogDB` and backup workflows.
+- The portable user-data unit is the complete `config/database/` directory,
+  including settings, the configured database, assets, and catalog PDFs.
+  Moving only the SQLite file does not move its external images or PDFs.
 - Paths under `config/database/` are deliberately stored relative to the data directory through `CatalogDB.to_db_path()` and resolved through `from_db_path()`. Preserve special non-file tokens such as `excel:...`.
 - `CatalogDB` does not retain a shared connection. Open one connection per operation/thread. If a connection is passed into DB helpers, the caller owns grouped commits and closing it.
 - Schema additions belong in `SCHEMA_SQL`; compatibility for existing databases belongs in `_ensure_columns()` or a deliberate, tested migration.
@@ -127,14 +143,21 @@ If script execution is blocked, change policy only for the current process:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ```
 
-There is no automated test suite, test configuration, formatter, linter, or type-checker configuration in the repository. Minimum non-GUI validation is:
+The repository has a `unittest` regression suite. There is no checked-in
+formatter, linter, or type-checker configuration. Minimum non-GUI validation
+from the repository virtual environment is:
 
 ```powershell
-python -m compileall -q run.py src
-python -c "import sys; sys.path.insert(0, 'src'); import smartcatalog; import smartcatalog.main"
+.\venv\Scripts\python.exe -m compileall -q run.py src tests
+.\venv\Scripts\python.exe -c "import sys; sys.path.insert(0, 'src'); import smartcatalog; import smartcatalog.main"
+.\venv\Scripts\python.exe -m unittest discover -s tests -v
+git diff --check
 ```
 
-Run focused read-only or temporary-directory checks for changed parsing/DB/export code. UI and workflow changes also require a manual smoke test when feasible; report any test that was not performed.
+The current baseline is 89 passing tests. Run focused read-only or
+temporary-directory checks for changed parsing, persistence, backup, or export
+code. UI and workflow changes also require a manual smoke test when feasible;
+report any test that was not performed.
 
 ## Windows executable build
 
@@ -150,7 +173,10 @@ The supported build is the checked-in PyInstaller configuration:
   user or irreplaceable files in `dist/`.
 - `SmartCatalog.spec` adds `src/`, collects `pymupdf`/`fitz`, includes the icon and branding image, and produces `dist/SmartCatalog/SmartCatalog.exe`.
 - Deliver the complete `dist/SmartCatalog/` folder, including `_internal`, not the executable alone.
-- The build intentionally excludes the development database and imported user content. First launch creates writable runtime directories beside the executable.
+- The build intentionally excludes the development database, `settings.json`,
+  and imported user content. First launch creates the writable runtime layout
+  and settings beside the executable. Existing-client upgrades must preserve
+  the complete existing `config/database/` directory.
 - Follow `BUILD_EXE.md` for the supported build, delivery checks, and licensing
   notes. `README.md` and `docs/README.md` provide the current documentation
   entry points.
@@ -171,7 +197,11 @@ Do not edit generated `build/` or `dist/` contents. Change the spec or build scr
 
 ## Change workflow
 
-For the behavior-preserving cleanup program, read `docs/REFACTOR_STATE.md` first to find the authoritative resume point, then follow `docs/REFACTOR_PLAN.md`. Its phases, validation gates, state updates, and checkpoint commits are mandatory; do not skip ahead or combine phases.
+The behavior-preserving refactor is complete. `docs/REFACTOR_STATE.md`,
+`docs/REFACTOR_PLAN.md`, and `docs/REFACTOR_BASELINE.md` are historical
+checkpoint records, not an active phase queue. New features, bug fixes, and
+release work must be separately scoped and must preserve the architecture,
+data-safety rules, and regression baseline in this guide.
 
 Before editing:
 
@@ -188,4 +218,7 @@ After editing:
 4. Manually smoke-test affected workflows when feasible: startup, select/edit/save, dirty-state prompts, PDF import, Excel import/export, image add/remove/rotate/reorder/crop, validation, backup, restart, and frozen execution as relevant.
 5. Report exactly what was validated and what remains untested.
 
-The files in `scripts/` are one-off data migrations, not normal startup code. Read the entire script, back up the database and assets, prefer a documented dry run when available, and verify its import/path assumptions before execution.
+There is no active `scripts/` migration directory. If a future task requires a
+one-off migration, keep it out of normal startup, provide a documented dry
+run, operate on a backed-up or disposable database and assets, and test both
+the intended old layout and the resulting current layout.

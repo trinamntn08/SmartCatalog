@@ -92,6 +92,26 @@ class MainWindow(
     # Layout
     # -----------------
 
+    def _clear_item_form(self) -> None:
+        for variable in (
+            self.var_code,
+            self.var_page,
+            self.var_category,
+            self.var_author,
+            self.var_dimension,
+            self.var_small_description,
+            self.var_shape,
+            self.var_blade_tip,
+            self.var_surface_treatment,
+            self.var_material,
+        ):
+            variable.set("")
+        self.var_validated.set(False)
+        self.description_excel_text.delete("1.0", "end")
+        self.description_vietnames_from_excel_text.delete("1.0", "end")
+        self._clear_thumbnails()
+        self._set_preview_text("")
+
     def _build_layout(self) -> None:
         self.pack(fill="both", expand=True)
         self.root.title("SmartCatalog — Trình quản lý danh mục sản phẩm y tế")
@@ -103,7 +123,14 @@ class MainWindow(
         self.btn_build_pdf.pack(side="left", padx=(0, 6))
         
         self.btn_match_excel = ttk.Button(self.toolbar, text="Cập nhật CSDL từ Excel", command=self.on_import_excel_catalog)
-        self.btn_match_excel.pack(side="left")
+        self.btn_match_excel.pack(side="left", padx=(0, 6))
+
+        self.btn_load_backup = ttk.Button(
+            self.toolbar,
+            text="Tải CSDL đã sao lưu...",
+            command=self.on_select_database,
+        )
+        self.btn_load_backup.pack(side="left")
 
         self.btn_backup = ttk.Button(self.toolbar, text="💾 Backup CSDL", command=self.on_backup_data)
         # Hidden for now
@@ -619,7 +646,7 @@ class MainWindow(
     def _apply_busy(self, busy: bool) -> None:
         self._busy.set(busy)
         for w in (self.btn_build_pdf, self.btn_refresh, self.btn_match_excel, self.btn_search_images,
-                  self.btn_search_images_opts,
+                  self.btn_search_images_opts, self.btn_load_backup,
                   self.btn_save, self.btn_add_item, self.btn_delete_item, self.btn_backup):
             w.configure(state=("disabled" if busy else "normal"))
         if busy:
