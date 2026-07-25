@@ -43,18 +43,18 @@ The active modules are:
 
 `MainWindow` currently mixes in `ItemsControllerMixin`, `CandidatesControllerMixin`, `ImagesControllerMixin`, and `ItemFormControllerMixin`. Keep reusable panel behavior in those controllers, persistence in `CatalogDB`, parsing in loaders, and leave `main_window.py` primarily for layout and workflow coordination.
 
-## Legacy and currently unwired code
+## Removed legacy code
 
-The following tracked modules are not imported by the active startup/UI flow:
+Phase 12 removed the previously unwired PDF database updater, alternate PDF
+extractor/matcher/viewer, ReportLab PDF exporter, and experimental settings
+module after verifying that no tracked caller remained. Their dispositions and
+active replacements are recorded in `docs/LEGACY_MODULE_DISPOSITION.md`.
 
-- `src/smartcatalog/db/update_db_from_pdf.py`
-- `src/smartcatalog/extracter/extract_key_info_from_pdf.py`
-- `src/smartcatalog/matcher/pdf_matcher.py`
-- `src/smartcatalog/ui/controllers/pdf_viewer_controller.py`
-- `src/smartcatalog/utils/pdf_exporter.py`
-- `src/smartcatalog/config/settings.py`
-
-Treat them as legacy/experimental until a task explicitly reconnects, migrates, or removes them. Do not build new features on them merely because a similar helper exists there. Before deleting or reviving one, search all tracked code and verify its intended replacement. In particular, the active PDF import is `loader/pdf_loader.py`, the active crop UI is `ui/pdf_crop_window.py`, and active export is Excel post-processing rather than `utils/pdf_exporter.py`.
+Do not recreate or revive those implementations merely because a similar
+helper existed there. The active PDF import is `services/pdf_import.py` through
+`loader/pdf_loader.py`, the active crop UI is `ui/pdf_crop_window.py`, and the
+supported export is Excel post-processing through
+`services/catalog_export.py`.
 
 ## Runtime data and persistence
 

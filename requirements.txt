@@ -1,10 +1,4 @@
 pandas
 PyMuPDF
 Pillow
-python-docx
-rapidfuzz
-python-Levenshtein
-regex
-numpy
-reportlab
 openpyxl>=3.1.0

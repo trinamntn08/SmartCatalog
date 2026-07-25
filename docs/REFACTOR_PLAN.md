@@ -105,7 +105,7 @@ Approved to start next phase: YES | NO
 | 9 | Extract PDF import service | Complete | Checkpoint 9 commit |
 | 10 | Extract backup service and reduce `MainWindow` | Complete | Checkpoint 10 commit |
 | 11 | Improve error and resource handling | Complete | Checkpoint 11 commit |
-| 12 | Resolve legacy code and dependencies | Not started | — |
+| 12 | Resolve legacy code and dependencies | Complete | Checkpoint 12 commit |
 | 13 | Verified naming and encoding cleanup | Not started | — |
 | 14 | Full regression and frozen release validation | Not started | — |
 
