@@ -103,7 +103,7 @@ Approved to start next phase: YES | NO
 | 7 | Extract Excel database-import service | Complete | Checkpoint 7 commit |
 | 8 | Extract Excel export service | Complete | Checkpoint 8 commit |
 | 9 | Extract PDF import service | Complete | Checkpoint 9 commit |
-| 10 | Extract backup service and reduce `MainWindow` | Not started | — |
+| 10 | Extract backup service and reduce `MainWindow` | Complete | Checkpoint 10 commit |
 | 11 | Improve error and resource handling | Not started | — |
 | 12 | Resolve legacy code and dependencies | Not started | — |
 | 13 | Verified naming and encoding cleanup | Not started | — |

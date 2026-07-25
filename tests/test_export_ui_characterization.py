@@ -160,7 +160,7 @@ class ExportTestCase(unittest.TestCase):
                 return_value=str(workbook_path),
             ),
             patch(
-                "smartcatalog.ui.main_window.ExportReviewDialog",
+                "smartcatalog.ui.controllers.workflows_controller.ExportReviewDialog",
                 ReviewDialogStub,
             ),
         ):
