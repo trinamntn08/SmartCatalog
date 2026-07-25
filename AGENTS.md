@@ -1,62 +1,104 @@
 # SmartCatalog Contributor Guide
 
-## Project summary
+## Scope and non-negotiable boundaries
 
-SmartCatalog is a Windows-oriented Python desktop application for building and reviewing a product catalog. It imports product data and images from PDF and Excel files, stores normalized records in SQLite, lets users edit and validate records in a Tkinter UI, and exports post-processed Excel/PDF output.
+SmartCatalog is a Windows-first Python/Tkinter desktop application for importing, reviewing, editing, and exporting a medical product catalog. Product data and images come mainly from layout-specific PDF catalogs and flexible Excel workbooks. The application persists its working catalog in SQLite and writes formatted Excel output.
 
-The UI text and business data are largely Vietnamese. Preserve Unicode source text and save Python and documentation files as UTF-8.
+- Work only in the tracked application, build, documentation, and explicitly requested migration-script areas.
+- `to_integrate/` is outside the application and outside review scope. Do not read it, edit it, import from it, copy code from it, or add fallbacks to it.
+- Treat `config/`, `input/`, `output/`, `build/`, and `dist/` as local, generated, or user-data areas. Do not inspect or modify their contents unless the task specifically requires it and the data is safely backed up.
+- Never delete, recreate, or casually rewrite `config/database/sql/catalog.db`, imported PDFs, settings, dictionaries, branding, or asset directories.
+- The UI and catalog data are largely Vietnamese. Preserve Unicode exactly and save source and documentation as UTF-8. Some existing source strings/comments are visibly mojibake; do not perform speculative or mass encoding conversion.
+- Preserve both source execution and frozen-executable behavior.
 
-`to_integrate/` is not part of the running application. Do not read from it, import from it, edit it, or add runtime fallbacks to it. Runtime resources must live under `config/database/` or the appropriate application package directory.
+## Active architecture
 
-## Repository map
+Normal startup is:
 
-- `run.py`: source and frozen-executable entry point; adds the project/source roots to `sys.path`.
-- `src/smartcatalog/main.py`: creates the Tk root, splash screen, application state, database, and main window.
-- `src/smartcatalog/state.py`: `AppState`, `CatalogItem`, application paths, directory creation, and persisted PDF selection.
-- `src/smartcatalog/db/catalog_db.py`: SQLite schema, compatibility migrations, path normalization, item CRUD, assets, and item/asset links.
-- `src/smartcatalog/loader/`: PDF and Excel ingestion.
-  - `extract_item.py`: layout-specific extraction of product fields from PDF pages.
-  - `pdf_loader.py`: page scan, item upsert, nearest-image extraction, and asset linking.
-  - `excel_loader.py`: flexible header/code detection and Excel description loading.
-- `src/smartcatalog/ui/main_window.py`: main Tkinter composition and high-level import, backup, and export workflows.
-- `src/smartcatalog/ui/controllers/`: mixins for the item list, form, images, PDF preview, and candidate images.
-- `src/smartcatalog/ui/pdf_crop_window.py`: manual PDF image cropping.
-- `src/smartcatalog/utils/post_processing.py`: formatted Excel output and low-level XLSX/XML header-image injection.
-- `src/smartcatalog/utils/description_dictionary.py`: imports bilingual descriptions from `config/database/dictionary.csv` into empty database fields without overwriting user edits.
-- `src/smartcatalog/utils/pdf_exporter.py`: ReportLab PDF exports.
-- `src/smartcatalog/ui/export_review_dialog.py`: pre-export review of missing VI/EN descriptions, images, and unknown product codes.
-- `scripts/`: one-off database/asset path migration utilities; review carefully before running.
-- `input/`: sample/manual input files.
-- `output/`: generated exports.
-- `config/database/`: runtime data, including SQLite, settings, selected PDFs, and imported/cropped images.
-- `docs/` and `icons/`: user documentation and application artwork.
+`run.py` -> `smartcatalog.main.start_ui()` -> `AppState` -> `CatalogDB` -> `create_main_window()`
 
-There is currently no automated test suite or packaging metadata beyond `requirements.txt`.
+The active modules are:
 
-## Runtime and data model
+- `run.py`: resolves the source or frozen application root, adds the root and `src/` to `sys.path`, and starts the UI.
+- `src/smartcatalog/main.py`: creates the Tk root, icon and splash screen, application state, database wrapper, and main window.
+- `src/smartcatalog/state.py`: defines `CatalogItem` and `AppState`, resolves runtime paths, creates data directories, and persists the selected catalog PDF.
+- `src/smartcatalog/db/catalog_db.py`: owns the live SQLite schema, compatibility column upgrades, path conversion, item CRUD, asset CRUD, and item/asset links.
+- `src/smartcatalog/loader/extract_item.py`: performs coordinate- and regex-sensitive extraction of item fields from PDF pages.
+- `src/smartcatalog/loader/pdf_loader.py`: scans the selected PDF, upserts extracted items, finds the nearest image, stores it as an asset, and links it to the item.
+- `src/smartcatalog/loader/excel_loader.py`: tolerantly detects header rows, code columns, and Vietnamese/English description columns across workbooks.
+- `src/smartcatalog/ui/main_window.py`: composes the Tkinter UI and coordinates PDF import, Excel database updates, backup, and Excel export/post-processing.
+- `src/smartcatalog/ui/controllers/items_controller.py`: item list filtering, sorting, selection, and search behavior.
+- `src/smartcatalog/ui/controllers/item_form_controller.py`: dirty-state handling, item add/edit/delete/save, validation state, and synchronization of UI image order to asset links.
+- `src/smartcatalog/ui/controllers/images_controller.py`: manual image add/remove/rotate, thumbnails, previews, drag reorder, and image provenance display.
+- `src/smartcatalog/ui/controllers/candidates_controller.py`: asynchronously extracts candidate images from the current PDF page and allows manual assignment.
+- `src/smartcatalog/ui/pdf_crop_window.py`: the currently wired manual PDF crop workflow.
+- `src/smartcatalog/ui/export_review_dialog.py`: pre-export review and editing for missing VI/EN descriptions, images, and unmatched codes.
+- `src/smartcatalog/utils/description_dictionary.py`: seeds only empty database description fields from `config/database/dictionary.csv`.
+- `src/smartcatalog/utils/post_processing.py`: builds the formatted post-processing worksheet, inserts product images, then edits the XLSX ZIP/XML package to install the header image.
+- `src/smartcatalog/ui/widgets/scrollable_frame.py`: reusable Tkinter scrollable frame.
 
-The normal startup flow is:
+`MainWindow` currently mixes in `ItemsControllerMixin`, `CandidatesControllerMixin`, `ImagesControllerMixin`, and `ItemFormControllerMixin`. Keep reusable panel behavior in those controllers, persistence in `CatalogDB`, parsing in loaders, and leave `main_window.py` primarily for layout and workflow coordination.
 
-`run.py` -> `smartcatalog.main.start_ui()` -> `AppState` -> `CatalogDB` -> `create_main_window()`.
+## Legacy and currently unwired code
 
-Runtime data lives beneath `<project_dir>/config/database/`:
+The following tracked modules are not imported by the active startup/UI flow:
 
-- `sql/catalog.db`
-- `settings.json`
-- `catalog_pdfs/`
-- `assets/excel_import/`
-- `assets/pdf_import/`
-- `assets/manual_import/`
+- `src/smartcatalog/db/update_db_from_pdf.py`
+- `src/smartcatalog/extracter/extract_key_info_from_pdf.py`
+- `src/smartcatalog/matcher/pdf_matcher.py`
+- `src/smartcatalog/ui/controllers/pdf_viewer_controller.py`
+- `src/smartcatalog/utils/pdf_exporter.py`
+- `src/smartcatalog/config/settings.py`
 
-The primary SQLite entities are:
+Treat them as legacy/experimental until a task explicitly reconnects, migrates, or removes them. Do not build new features on them merely because a similar helper exists there. Before deleting or reviving one, search all tracked code and verify its intended replacement. In particular, the active PDF import is `loader/pdf_loader.py`, the active crop UI is `ui/pdf_crop_window.py`, and active export is Excel post-processing rather than `utils/pdf_exporter.py`.
 
-- `items`: unique product `code`, extracted PDF fields, Excel descriptions, source PDF/page, and validation state.
-- `assets`: image path, PDF/page origin, optional bounding box, source, and hash.
-- `item_asset_links`: ordered/primary item-image associations plus match method, score, and verification state.
+## Runtime data and persistence
 
-Database paths beneath the data directory are intentionally stored as relative paths through `CatalogDB.to_db_path()` and resolved with `from_db_path()`. Keep this behavior so databases remain portable when the project or packaged application is moved.
+`AppState.project_dir` is the repository root in source mode and the executable directory in frozen mode. Runtime data is created beside it:
 
-## Setup and common commands
+```text
+config/database/
+├── sql/catalog.db
+├── settings.json
+├── catalog_pdfs/
+└── assets/
+    ├── excel_import/
+    ├── pdf_import/
+    └── manual_import/
+```
+
+The live SQLite entities are:
+
+- `items`: unique product `code`, descriptions, extracted fields, source PDF/page, and validation status/time.
+- `assets`: stored image path, PDF/page provenance, optional PDF bounding box, source, hash, and creation time.
+- `item_asset_links`: ordered item/image associations with match method, score, verified flag, and primary flag.
+
+Persistence rules:
+
+- Product code is the stable unique business key. Reuse the relevant existing normalization behavior and avoid silently merging ambiguous normalized codes.
+- Paths under `config/database/` are deliberately stored relative to the data directory through `CatalogDB.to_db_path()` and resolved through `from_db_path()`. Preserve special non-file tokens such as `excel:...`.
+- `CatalogDB` does not retain a shared connection. Open one connection per operation/thread. If a connection is passed into DB helpers, the caller owns grouped commits and closing it.
+- Schema additions belong in `SCHEMA_SQL`; compatibility for existing databases belongs in `_ensure_columns()` or a deliberate, tested migration.
+- Keep foreign keys enabled and keep `assets` and `item_asset_links` synchronized with item image changes.
+- Image order is represented by link order, with `is_primary` sorted first. Reordering currently rebuilds links while retaining metadata. The first UI image is made primary when the form is saved.
+- Keep active provenance strings compatible with existing behavior: `excel`, `extract`, `page_extract`, `manual_crop`, and `add`. Coordinate any rename across loaders, DB code, controllers, and existing data.
+- Database PDF page values are 1-based. PyMuPDF document indexes are 0-based. Convert explicitly at every boundary.
+- Validated items and items with Excel-sourced images receive special skip behavior during PDF re-import; preserve that protection unless the task explicitly changes it.
+- SQLite descriptions are the source of truth. Dictionary import may fill empty VI/EN fields but must never overwrite non-empty user edits automatically.
+
+For persistence work, use a temporary project directory or copies of representative databases. Test both a fresh schema and an older schema upgraded in place. Never use the live catalog as test data.
+
+## Main user workflows
+
+- PDF import copies the chosen PDF into `catalog_pdfs/`, persists the relative selection, scans pages in a background thread, prompts before updating existing unvalidated records, and assigns nearest extracted images only when an item has no images.
+- Excel database update tolerantly detects codes/descriptions on all sheets, updates matching descriptions, extracts embedded images by their nearest code row, deduplicates image content, and stores Excel images under `assets/excel_import/`.
+- Manual image workflows can add files, assign PDF-page candidates, crop a PDF region, rotate images, remove links, and reorder linked images.
+- Backup uses SQLite's backup API and copies assets, catalog PDFs, and settings to a timestamped user-selected directory.
+- Excel export reads product codes/quantities from a selected workbook, performs exact then unique normalized matching, optionally runs the preflight dialog, replaces the output worksheet with the formatted post-processing sheet, embeds images, and injects branding into the XLSX package.
+
+Long PDF, Excel, image, and backup work runs off the UI thread. Tkinter widgets and variables must be accessed only on the UI thread through `root.after(...)`, `_safe_ui`, `_ui_call`, or the established equivalent. A worker may wait for a UI-thread decision only through the existing event/dialog pattern; do not call dialogs directly from a worker.
+
+## Development setup
 
 Use PowerShell from the repository root:
 
@@ -67,64 +109,64 @@ python -m pip install -r requirements.txt
 python run.py
 ```
 
-If PowerShell blocks activation, use a process-scoped policy:
+If script execution is blocked, change policy only for the current process:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ```
 
-Quick non-GUI validation:
+There is no automated test suite, test configuration, formatter, linter, or type-checker configuration in the repository. Minimum non-GUI validation is:
 
 ```powershell
 python -m compileall -q run.py src
-python -c "import sys; sys.path.insert(0, 'src'); import smartcatalog"
+python -c "import sys; sys.path.insert(0, 'src'); import smartcatalog; import smartcatalog.main"
 ```
 
-The application must also be smoke-tested manually for UI or workflow changes. Use disposable/sample input and a backed-up runtime database. Relevant checks usually include startup, item selection/edit/save, PDF or Excel import, image add/remove/reorder, validation state, and export.
+Run focused read-only or temporary-directory checks for changed parsing/DB/export code. UI and workflow changes also require a manual smoke test when feasible; report any test that was not performed.
 
-The README documents the current `auto-py-to-exe` build setup. A frozen build must include `src` on the search path and collect PyMuPDF (`fitz`/`pymupdf`).
+## Windows executable build
 
-## Engineering rules
+The supported build is the checked-in PyInstaller configuration:
 
-- Target the Python version used by the checked-in `venv`/deployment environment; do not add dependencies without updating `requirements.txt`.
-- Use `pathlib.Path` for filesystem work and derive runtime paths from `AppState.project_dir`, `data_dir`, or `assets_dir`. Do not hard-code developer-machine paths.
-- Preserve both source execution and frozen executable behavior (`sys.frozen` and `sys.executable`).
-- Never commit or casually rewrite runtime data in `config/`, `data/`, `input/`, or `output/`. These may contain large, local, or user-generated files even when ignored by Git.
-- Do not delete or rebuild `catalog.db`, asset directories, settings, or imported PDFs as a side effect of a code change.
-- Preserve backward compatibility for existing databases. Schema additions belong in `SCHEMA_SQL` and, where needed, `_ensure_columns()` or an explicit migration.
-- Product codes are the stable unique key. Reuse the existing normalization helpers when matching codes from spreadsheets or PDFs.
-- PDF page numbers stored in the database are 1-based; PyMuPDF page indexes are 0-based. Convert explicitly at boundaries.
-- Image ordering matters: the first linked image may be marked primary. Keep asset records and `item_asset_links` synchronized when adding, deleting, or reordering images.
-- Keep image provenance values compatible with current UI behavior (`excel`, `extract`, `page_extract`, `manual_crop`, and `add`) unless performing a coordinated migration.
-- Treat SQLite description fields as the source of truth. `config/database/dictionary.csv` may seed empty VI/EN fields, but must never overwrite non-empty user data automatically.
-- `CatalogDB` deliberately does not retain a shared SQLite connection. Open a connection per operation/thread, pass it into grouped DB methods, commit intentionally, and close it in `finally`.
-- Long PDF/Excel/image operations run in background threads. Tkinter widgets and variables must only be touched on the UI thread; marshal updates with `root.after(...)` or the existing safe UI helpers.
-- Keep strong references to `ImageTk.PhotoImage` objects or Tkinter will display blank images.
-- Close PyMuPDF documents and PIL image contexts deterministically.
-- Avoid broad exception swallowing in new logic. Existing best-effort UI/icon code uses it in places, but new failures should provide actionable status or dialog messages.
-- Keep `main_window.py` focused on layout and workflow coordination where practical; put reusable panel behavior in the existing controller mixins and data operations in loaders/DB utilities.
+```powershell
+.\build_exe.ps1
+```
+
+- The script expects `venv\Scripts\python.exe` and PyInstaller installed in that environment; PyInstaller is not listed in `requirements.txt`.
+- `SmartCatalog.spec` adds `src/`, collects `pymupdf`/`fitz`, includes the icon and branding image, and produces `dist/SmartCatalog/SmartCatalog.exe`.
+- Deliver the complete `dist/SmartCatalog/` folder, including `_internal`, not the executable alone.
+- The build intentionally excludes the development database and imported user content. First launch creates writable runtime directories beside the executable.
+- Follow `BUILD_EXE.md` for delivery checks and licensing notes. The short `README.md` contains older `auto-py-to-exe` instructions and should not override the checked-in spec/build script.
+
+Do not edit generated `build/` or `dist/` contents. Change the spec or build script and rebuild instead.
+
+## Engineering guidance
+
+- Prefer `pathlib.Path` and derive paths from `AppState.project_dir`, `data_dir`, or `assets_dir`; never hard-code a developer-machine path.
+- Do not add dependencies without updating `requirements.txt` and verifying the frozen build.
+- Keep strong references to every displayed `ImageTk.PhotoImage`; otherwise Tkinter may render blank images.
+- Close PyMuPDF documents, PIL image contexts, workbooks where supported, and SQLite connections deterministically.
+- Avoid broad exception swallowing in new code. Existing best-effort icon/UI paths contain it, but new failures should produce actionable status or dialog messages.
+- PDF extraction is catalog-layout-specific. Small coordinate, clustering, regex, or nearest-image changes can alter many products; test representative single- and multi-column pages and unusual dimensions.
+- Excel input intentionally accepts variable header rows and column names. Preserve tolerant detection unless a task explicitly narrows the accepted format.
+- `post_processing.py` performs low-level ZIP, XML relationship, VML, and content-type edits after openpyxl. Verify the result opens in desktop Excel and retains images, branding, print settings, sheet relationships, and workbook integrity.
+- Avoid opportunistic cleanup across the large `main_window.py` or mojibake-looking text. Make small, separable refactors with behavior-preserving checkpoints.
 
 ## Change workflow
 
 Before editing:
 
-1. Check `git status --short`; the worktree may contain user changes.
-2. Search application code under `src/`; exclude `to_integrate/`.
-3. Trace the complete flow across UI, state, DB, and filesystem before changing persisted behavior.
+1. Run `git status --short` and preserve all unrelated tracked and untracked work.
+2. Search tracked application code under `src/`, explicitly excluding `to_integrate/`, generated outputs, and runtime data.
+3. Identify whether the target code is active or legacy.
+4. Trace the complete UI -> state -> DB -> filesystem flow before changing persisted behavior.
 
 After editing:
 
-1. Review the diff and ensure unrelated/local runtime files are untouched.
-2. Run `python -m compileall -q run.py src`.
-3. Run focused imports or small read-only checks for the changed module.
-4. Manually smoke-test GUI/data workflows when feasible and report anything not tested.
+1. Review `git diff` and confirm runtime/generated/user files are untouched.
+2. Run compile validation and focused imports.
+3. Run focused checks against disposable data.
+4. Manually smoke-test affected workflows when feasible: startup, select/edit/save, dirty-state prompts, PDF import, Excel import/export, image add/remove/rotate/reorder/crop, validation, backup, restart, and frozen execution as relevant.
+5. Report exactly what was validated and what remains untested.
 
-For changes involving persistence, test against a copy of the database or a temporary project directory. Validate both a newly created schema and an older schema upgraded in place.
-
-## Current caveats
-
-- PDF extraction is catalog-layout-specific; small coordinate, clustering, or regex changes can affect many products. Test representative pages, including pages with multiple product columns and unusual dimensions.
-- Excel ingestion accepts variable header rows and column names. Preserve that tolerant detection unless the task explicitly narrows the accepted format.
-- Some modules contain legacy or mojibake-looking comments/messages. Do not perform unrelated mass encoding rewrites; edit only verified strings and keep files UTF-8.
-- `post_processing.py` edits the XLSX ZIP/XML package after using openpyxl. Changes there should verify that the workbook opens in Excel and retains images, relationships, print settings, and branding.
-- No automated regression coverage exists yet. Prefer small, separable changes and document manual verification.
+The files in `scripts/` are one-off data migrations, not normal startup code. Read the entire script, back up the database and assets, prefer a documented dry run when available, and verify its import/path assumptions before execution.
