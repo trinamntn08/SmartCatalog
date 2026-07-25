@@ -23,6 +23,13 @@ from smartcatalog.loader.pdf_loader import (
     _save_image_bytes_as_png,
     build_or_update_db_from_pdf,
 )
+from smartcatalog.loader.pdf_image_extractor import (
+    distance_between_rects,
+    handle_jpeg2000_conversion,
+    nearest_image_for_code_on_page,
+    save_image_bytes_as_png,
+)
+from smartcatalog.services.pdf_import import import_pdf_catalog
 
 
 def png_bytes(
@@ -241,6 +248,12 @@ class PDFFieldExtractionCharacterizationTests(PDFTestCase):
 
 
 class PDFImageCharacterizationTests(PDFTestCase):
+    def test_loader_reexports_extracted_image_helpers(self) -> None:
+        self.assertIs(_distance_between_rects, distance_between_rects)
+        self.assertIs(_handle_jpeg2000_conversion, handle_jpeg2000_conversion)
+        self.assertIs(_nearest_image_for_code_on_page, nearest_image_for_code_on_page)
+        self.assertIs(_save_image_bytes_as_png, save_image_bytes_as_png)
+
     def test_distance_uses_rectangle_centers(self) -> None:
         self.assertEqual(
             _distance_between_rects(
@@ -320,6 +333,27 @@ class PDFImageCharacterizationTests(PDFTestCase):
 
 
 class PDFImportCharacterizationTests(PDFTestCase):
+    def test_extracted_service_returns_typed_counts_without_tkinter(self) -> None:
+        path = create_extraction_pdf(
+            self.project.path("service.pdf"),
+            blank_first_page=True,
+            include_images=False,
+        )
+        statuses: list[str] = []
+
+        result = import_pdf_catalog(
+            self.state_for(path),
+            status_callback=statuses.append,
+        )
+
+        self.assertEqual(result.scanned, 2)
+        self.assertEqual(result.updated, 1)
+        self.assertEqual(result.skipped_validated, 0)
+        self.assertEqual(result.skipped_excel, 0)
+        self.assertEqual(result.skipped_existing, 0)
+        self.assertEqual(result.images_added, 0)
+        self.assertTrue(statuses[-1].startswith("✅ Xong."))
+
     def test_import_uses_one_based_page_but_currently_rolls_back_image_link(self) -> None:
         path = create_extraction_pdf(
             self.project.path("import.pdf"),
