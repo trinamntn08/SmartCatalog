@@ -1,5 +1,10 @@
 # Active Error and Resource Handling Audit
 
+[Documentation index](README.md)
+
+Historical audit record from the completed behavior-preserving refactor. Use
+`ARCHITECTURE.md` and `AGENTS.md` for current implementation guidance.
+
 This audit records the Phase 11 review of active startup and workflow modules.
 Legacy/unwired modules listed in `AGENTS.md` were not changed.
 

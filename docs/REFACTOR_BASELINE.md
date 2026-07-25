@@ -1,5 +1,10 @@
 # SmartCatalog Refactor Baseline
 
+[Documentation index](README.md)
+
+Historical characterization and checkpoint record. For current setup and
+validation commands, use `DEVELOPMENT.md`.
+
 This document records the starting environment and manual verification process for the behavior-preserving refactor. Update results at each checkpoint; do not use it to redefine expected behavior.
 
 ## Baseline commit

@@ -1,5 +1,10 @@
 # Legacy Module and Dependency Disposition
 
+[Documentation index](README.md)
+
+Historical removal record. The current module map is documented in
+`ARCHITECTURE.md` and `AGENTS.md`.
+
 Phase 12 reviewed every module previously listed as legacy/unwired. Searches
 covered tracked application code, tests, build configuration, and
 documentation. Runtime/generated/user-data directories and `to_integrate/`

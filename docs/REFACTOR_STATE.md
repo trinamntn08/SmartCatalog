@@ -1,5 +1,10 @@
 # SmartCatalog Refactor Session State
 
+[Documentation index](README.md)
+
+Status: completed. This document preserves the final checkpoint and validation
+state. New work should follow `AGENTS.md` and `DEVELOPMENT.md`.
+
 This is the authoritative resume point for the behavior-preserving refactor. Read this file before starting work in every new session.
 
 ## Current state
@@ -8,7 +13,7 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 Program status: COMPLETE
 Current branch: refactor/behavior-preserving-cleanup
 Last completed phase: Phase 14 — Full regression and frozen release validation
-Last checkpoint commit: this post-refactor cleanup commit
+Last checkpoint commit: this documentation refresh commit
 Next permitted phase: None — behavior-preserving refactor complete
 Production refactoring permitted: NO; begin future changes as separately scoped work
 Reason: Characterization, refactor, automated, source, frozen, and user-acceptance gates are complete
@@ -38,6 +43,7 @@ Existing untracked local directories may include `build/`, `dist/`, `input/`, `o
 | 12 | `6abc6e0` | Unwired legacy modules and proven-unused direct dependencies removed; dispositions documented; disposable frozen build and startup validated |
 | 13 | This checkpoint commit | Workflow names clarified with compatibility delegates; obsolete private wrappers removed; UTF-8/mojibake audit automated without speculative text changes |
 | Post-refactor cleanup | This checkpoint commit | Proven-unreferenced helpers, temporary delegates/re-exports, unused state fields, and stale architecture guidance removed |
+| Documentation refresh | This checkpoint commit | Current user/developer guides and documentation index added; historical records labeled; obsolete binary guides retired |
 
 Current automated baseline:
 

@@ -1,5 +1,10 @@
 # SmartCatalog Behavior-Preserving Refactor Plan
 
+[Documentation index](README.md)
+
+Status: completed. This file preserves the original phased plan and gates; it
+is not the active plan for new features.
+
 ## Objective
 
 Refactor SmartCatalog into code that is easier to read, test, and maintain while preserving the application's current observable behavior.

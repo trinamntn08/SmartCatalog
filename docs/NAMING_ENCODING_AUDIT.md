@@ -1,5 +1,10 @@
 # Naming and Encoding Audit
 
+[Documentation index](README.md)
+
+Historical audit record. The callback names shown as canonical below remain
+the current supported names.
+
 Phase 13 reviewed active workflow names, temporary compatibility helpers,
 placeholder expressions, and Python source encoding.
 

@@ -1,5 +1,10 @@
 # Phase 14 Final Validation
 
+[Documentation index](README.md)
+
+Historical final-validation record for the completed behavior-preserving
+refactor. Current validation commands are in `DEVELOPMENT.md`.
+
 Date: 2026-07-25
 
 ## Reproducible checks completed

@@ -1,9 +1,20 @@
 # SmartCatalog
 
-SmartCatalog is a Windows-first Python/Tkinter application for importing,
-reviewing, editing, and exporting a medical product catalog.
+SmartCatalog is a Windows desktop application for building and maintaining a
+medical product catalog. It imports product data and images from PDF catalogs
+and Excel workbooks, supports manual review and image editing, stores the
+working catalog in SQLite, and exports formatted Excel workbooks.
 
-## Development setup
+## Main capabilities
+
+- Import or update products from a catalog PDF.
+- Merge Vietnamese and English descriptions from Excel.
+- Import embedded Excel images and manage product images manually.
+- Search, sort, edit, validate, and review catalog items.
+- Back up the database and associated files.
+- Export formatted Excel catalogs with images, branding, and print settings.
+
+## Run from source
 
 From PowerShell in the repository root:
 
@@ -14,33 +25,34 @@ python -m pip install -r requirements.txt
 python run.py
 ```
 
-If activation is blocked, change the execution policy only for the current
-PowerShell process:
+If PowerShell blocks activation, change policy only for the current process:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ```
 
-## Windows executable
-
-Use the checked-in PyInstaller build:
+## Build the Windows release
 
 ```powershell
 .\build_exe.ps1
 ```
 
-Deliver the complete `dist\SmartCatalog\` directory, including `_internal`.
-The build uses `build\` for intermediate files and recreates `dist\` as the
-clean release output.
-See [BUILD_EXE.md](BUILD_EXE.md) for build, validation, delivery, and licensing
-details.
+The script uses `build\` for intermediate files, cleans `dist\`, and creates
+the complete release in `dist\SmartCatalog\`. Distribute that entire folder,
+including `_internal`; do not distribute `SmartCatalog.exe` by itself.
 
-## Architecture and maintenance
+## Important data safety
 
-- [Contributor guide](AGENTS.md)
+SmartCatalog stores its working data under `config\database\` beside the source
+project or frozen executable. Do not delete that directory to reset the
+application. Use the built-in backup workflow before migrations, upgrades, or
+manual file operations.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [User guide](docs/USER_GUIDE.md)
+- [Developer guide](docs/DEVELOPMENT.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Refactor state](docs/REFACTOR_STATE.md)
-- [Refactor plan](docs/REFACTOR_PLAN.md)
-- [Refactor baseline and validation](docs/REFACTOR_BASELINE.md)
-- [Phase 14 validation evidence](docs/FINAL_VALIDATION.md)
-- [Post-refactor cleanup audit](docs/POST_REFACTOR_CLEANUP.md)
+- [Windows release build](BUILD_EXE.md)
+- [Contributor rules](AGENTS.md)

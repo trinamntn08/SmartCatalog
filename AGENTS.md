@@ -1,5 +1,9 @@
 # SmartCatalog Contributor Guide
 
+For general setup and navigation, start with `README.md` and
+`docs/README.md`. This file contains mandatory rules for contributors and
+automation.
+
 ## Scope and non-negotiable boundaries
 
 SmartCatalog is a Windows-first Python/Tkinter desktop application for importing, reviewing, editing, and exporting a medical product catalog. Product data and images come mainly from layout-specific PDF catalogs and flexible Excel workbooks. The application persists its working catalog in SQLite and writes formatted Excel output.
@@ -147,7 +151,9 @@ The supported build is the checked-in PyInstaller configuration:
 - `SmartCatalog.spec` adds `src/`, collects `pymupdf`/`fitz`, includes the icon and branding image, and produces `dist/SmartCatalog/SmartCatalog.exe`.
 - Deliver the complete `dist/SmartCatalog/` folder, including `_internal`, not the executable alone.
 - The build intentionally excludes the development database and imported user content. First launch creates writable runtime directories beside the executable.
-- Follow `BUILD_EXE.md` for delivery checks and licensing notes. The short `README.md` contains older `auto-py-to-exe` instructions and should not override the checked-in spec/build script.
+- Follow `BUILD_EXE.md` for the supported build, delivery checks, and licensing
+  notes. `README.md` and `docs/README.md` provide the current documentation
+  entry points.
 
 Do not edit generated `build/` or `dist/` contents. Change the spec or build script and rebuild instead.
 

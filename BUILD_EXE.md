@@ -1,5 +1,14 @@
 # Build the SmartCatalog Windows application
 
+[Project overview](README.md) ·
+[Developer guide](docs/DEVELOPMENT.md) ·
+[Documentation index](docs/README.md)
+
+This is the supported release process. The older `auto-py-to-exe` workflow is
+not supported.
+
+## Build
+
 Build from PowerShell at the repository root:
 
 ```powershell
@@ -9,6 +18,8 @@ Build from PowerShell at the repository root:
 The script resolves paths from its own location, so invoking it by absolute
 path from another working directory produces `build/` and `dist/` beside the
 script rather than in the caller's directory.
+
+## Release output
 
 The client-ready folder is:
 
@@ -45,6 +56,8 @@ release build.
 It intentionally does not include the development database, imported PDFs, or
 product images. On first launch, SmartCatalog creates its writable
 `config/database` structure beside the executable.
+
+## Delivery checklist
 
 Before delivery:
 

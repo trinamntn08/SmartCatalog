@@ -1,5 +1,9 @@
 # SmartCatalog Architecture
 
+[Documentation index](README.md) · [Developer guide](DEVELOPMENT.md)
+
+This document describes the current runtime architecture.
+
 ## Runtime entry point
 
 Normal startup follows:
@@ -71,3 +75,10 @@ imported PDFs, and product images are intentionally excluded.
 
 See `AGENTS.md` for contributor constraints and
 `docs/REFACTOR_BASELINE.md` for characterization and validation evidence.
+
+## Related documents
+
+- [User guide](USER_GUIDE.md)
+- [Developer guide](DEVELOPMENT.md)
+- [Windows build guide](../BUILD_EXE.md)
+- [Contributor rules](../AGENTS.md)

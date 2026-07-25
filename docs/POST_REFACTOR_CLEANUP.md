@@ -1,5 +1,9 @@
 # Post-refactor Cleanup Audit
 
+[Documentation index](README.md)
+
+Historical record of the cleanup checkpoint after the main refactor.
+
 Date: 2026-07-25
 
 This audit reviewed tracked application code and documentation after the
