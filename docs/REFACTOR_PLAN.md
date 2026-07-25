@@ -99,7 +99,7 @@ Approved to start next phase: YES | NO
 | 3 | Characterize PDF and image behavior | Complete | Checkpoint 3 commit |
 | 4 | Characterize export and UI workflows | Complete | Checkpoint 4 commit |
 | 5 | Extract pure shared utilities | Complete | Checkpoint 5 commit |
-| 6 | Split database internals behind `CatalogDB` | Not started | — |
+| 6 | Split database internals behind `CatalogDB` | Complete | Checkpoint 6 commit |
 | 7 | Extract Excel database-import service | Not started | — |
 | 8 | Extract Excel export service | Not started | — |
 | 9 | Extract PDF import service | Not started | — |

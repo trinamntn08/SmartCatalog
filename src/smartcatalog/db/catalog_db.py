@@ -2,85 +2,39 @@
 from __future__ import annotations
 
 import sqlite3
-import datetime
 from pathlib import Path
 from typing import Optional, List, Tuple
 
 from smartcatalog.domain.models import CatalogItem
-
-
-SCHEMA_SQL = """
-PRAGMA foreign_keys = ON;
-
--- -------------------------
--- Items (existing)
--- -------------------------
-CREATE TABLE IF NOT EXISTS items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  code TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  description_excel TEXT NOT NULL DEFAULT '',
-  description_vietnames_from_excel TEXT NOT NULL DEFAULT '',
-  pdf_path TEXT NOT NULL DEFAULT '',
-  page INTEGER,
-  validated INTEGER NOT NULL DEFAULT 0,
-  validated_at TEXT NOT NULL DEFAULT '',
-
-  category TEXT NOT NULL DEFAULT '',
-  author TEXT NOT NULL DEFAULT '',
-  dimension TEXT NOT NULL DEFAULT '',
-  small_description TEXT NOT NULL DEFAULT '',
-  shape TEXT NOT NULL DEFAULT '',
-  blade_tip TEXT NOT NULL DEFAULT '',
-  surface_treatment TEXT NOT NULL DEFAULT '',
-  material TEXT NOT NULL DEFAULT ''
-);
-
--- Ensure code is unique
-CREATE UNIQUE INDEX IF NOT EXISTS idx_items_code_unique ON items(code);
-
--- -------------------------
--- New: assets = all extracted (or manually cropped) images from PDF pages
--- -------------------------
-CREATE TABLE IF NOT EXISTS assets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  pdf_path TEXT NOT NULL,
-  page INTEGER NOT NULL,
-  asset_path TEXT NOT NULL,
-
-  -- bbox in PDF coordinates (optional for now)
-  x0 REAL, y0 REAL, x1 REAL, y1 REAL,
-
-  -- metadata
-  source TEXT NOT NULL DEFAULT 'extract',   -- 'extract' | 'manual_crop'
-  sha256 TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_assets_pdf_page ON assets(pdf_path, page);
-CREATE INDEX IF NOT EXISTS idx_assets_asset_path ON assets(asset_path);
-
--- -------------------------
--- New: links between items and assets (manual/heuristic/model + verified flags)
--- -------------------------
-CREATE TABLE IF NOT EXISTS item_asset_links (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  item_id INTEGER NOT NULL,
-  asset_id INTEGER NOT NULL,
-
-  match_method TEXT NOT NULL DEFAULT 'heuristic', -- 'heuristic' | 'manual' | 'model'
-  score REAL,
-  verified INTEGER NOT NULL DEFAULT 0,
-  is_primary INTEGER NOT NULL DEFAULT 0,
-
-  FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE,
-  FOREIGN KEY(asset_id) REFERENCES assets(id) ON DELETE CASCADE
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_item_asset_unique ON item_asset_links(item_id, asset_id);
-CREATE INDEX IF NOT EXISTS idx_item_asset_item ON item_asset_links(item_id);
-CREATE INDEX IF NOT EXISTS idx_item_asset_asset ON item_asset_links(asset_id);
-"""
+from smartcatalog.db.path_mapper import DatabasePathMapper
+from smartcatalog.db.asset_repository import (
+    clear_asset_links_for_item as repository_clear_asset_links_for_item,
+    link_asset_to_item as repository_link_asset_to_item,
+    list_asset_links_for_item as repository_list_asset_links_for_item,
+    list_asset_paths_for_item as repository_list_asset_paths_for_item,
+    list_assets_for_page as repository_list_assets_for_page,
+    list_image_sources_for_item as repository_list_image_sources_for_item,
+    list_linked_asset_paths_by_item,
+    reorder_asset_links_for_item_by_paths as repository_reorder_asset_links,
+    set_primary_asset_for_item as repository_set_primary_asset_for_item,
+    unlink_asset_from_item as repository_unlink_asset_from_item,
+    upsert_asset as repository_upsert_asset,
+)
+from smartcatalog.db.item_repository import (
+    get_item_columns,
+    get_item_row_by_code,
+    list_item_rows,
+    map_catalog_item,
+    table_exists,
+    upsert_by_code as repository_upsert_by_code,
+    update_description_by_code as repository_update_description,
+    update_excel_descriptions_by_code as repository_update_excel_descriptions,
+)
+from smartcatalog.db.schema import (
+    SCHEMA_SQL,
+    ensure_compatibility_columns,
+    ensure_schema,
+)
 
 
 class CatalogDB:
@@ -92,7 +46,8 @@ class CatalogDB:
 
     def __init__(self, db_path: str | Path, data_dir: Optional[str | Path] = None):
         self.db_path = str(db_path)
-        self.data_dir: Optional[Path] = Path(data_dir).resolve() if data_dir else None
+        self._path_mapper = DatabasePathMapper(data_dir)
+        self.data_dir = self._path_mapper.data_dir
 
         conn = self.connect()
         try:
@@ -110,42 +65,13 @@ class CatalogDB:
         Convert an absolute path under data_dir to a relative path.
         Leave non-path tokens like 'excel:...' untouched.
         """
-        s = str(p or "").strip()
-        if not s:
-            return s
-        if s.lower().startswith("excel:"):
-            return s
-        if not self.data_dir:
-            return s
-        try:
-            path = Path(s)
-            if path.is_absolute():
-                try:
-                    return str(path.resolve().relative_to(self.data_dir))
-                except Exception:
-                    return s
-        except Exception:
-            return s
-        return s
+        return self._path_mapper.to_db_path(p)
 
     def from_db_path(self, p: str) -> str:
         """
         Resolve a relative DB path to an absolute path under data_dir.
         """
-        s = str(p or "").strip()
-        if not s:
-            return s
-        if s.lower().startswith("excel:"):
-            return s
-        if not self.data_dir:
-            return s
-        try:
-            path = Path(s)
-            if not path.is_absolute():
-                return str((self.data_dir / path).resolve())
-        except Exception:
-            return s
-        return s
+        return self._path_mapper.from_db_path(p)
 
     def connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -154,54 +80,24 @@ class CatalogDB:
         return conn
 
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
-        conn.executescript(SCHEMA_SQL)
-        conn.commit()
+        ensure_schema(conn)
 
     def _ensure_columns(self, conn: sqlite3.Connection) -> None:
         """
         If DB existed before we added new columns, add them safely.
         (Tables/assets/links are created with IF NOT EXISTS already.)
         """
-        cols = {
-            "category": "TEXT NOT NULL DEFAULT ''",
-            "author": "TEXT NOT NULL DEFAULT ''",
-            "dimension": "TEXT NOT NULL DEFAULT ''",
-            "small_description": "TEXT NOT NULL DEFAULT ''",
-            "shape": "TEXT NOT NULL DEFAULT ''",
-            "blade_tip": "TEXT NOT NULL DEFAULT ''",
-            "surface_treatment": "TEXT NOT NULL DEFAULT ''",
-            "material": "TEXT NOT NULL DEFAULT ''",
-            "description_excel": "TEXT NOT NULL DEFAULT ''",
-            "description_vietnames_from_excel": "TEXT NOT NULL DEFAULT ''",
-            "pdf_path": "TEXT NOT NULL DEFAULT ''",
-            "validated": "INTEGER NOT NULL DEFAULT 0",
-            "validated_at": "TEXT NOT NULL DEFAULT ''",
-        }
-        cur = conn.cursor()
-        for col, ddl in cols.items():
-            try:
-                cur.execute(f"ALTER TABLE items ADD COLUMN {col} {ddl}")
-            except sqlite3.OperationalError:
-                pass
-        conn.commit()
+        ensure_compatibility_columns(conn)
 
     # ==========================================================================================
     # Read
     # ==========================================================================================
 
     def _table_exists(self, conn, name: str) -> bool:
-        row = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (name,),
-        ).fetchone()
-        return row is not None
+        return table_exists(conn, name)
 
     def _get_item_columns(self, conn) -> set[str]:
-        cols = set()
-        for r in conn.execute("PRAGMA table_info(items)").fetchall():
-            # row: cid, name, type, notnull, dflt_value, pk
-            cols.add(r[1] if not isinstance(r, dict) else r["name"])
-        return cols
+        return get_item_columns(conn)
 
     def list_items(self):
         """
@@ -215,32 +111,7 @@ class CatalogDB:
 
         conn = self.connect()
         try:
-            cols = self._get_item_columns(conn)
-
-            # select only columns that exist (safe across migrations)
-            select_cols = ["id", "code", "description", "page"]
-            for opt in [
-                "category",
-                "author",
-                "dimension",
-                "small_description",
-                "shape",
-                "blade_tip",
-                "surface_treatment",
-                "material",
-                "images",
-                "description_excel",
-                "pdf_path",
-                "validated",
-                "validated_at",
-            ]:
-                if opt in cols:
-                    select_cols.append(opt)
-            if "description_vietnames_from_excel" in cols:
-                select_cols.append("description_vietnames_from_excel")
-
-            sql = f"SELECT {', '.join(select_cols)} FROM items ORDER BY id"
-            rows = conn.execute(sql).fetchall()
+            select_cols, rows = list_item_rows(conn)
 
             has_assets = self._table_exists(conn, "assets")
             has_links = self._table_exists(conn, "item_asset_links")
@@ -250,18 +121,7 @@ class CatalogDB:
             # ------------------------------------------------------------
             linked_assets_map: dict[int, list[str]] = {}
             if has_assets and has_links:
-                link_rows = conn.execute(
-                    """
-                    SELECT l.item_id AS item_id, a.asset_path AS asset_path
-                    FROM item_asset_links l
-                    JOIN assets a ON a.id = l.asset_id
-                    ORDER BY l.item_id ASC, l.is_primary DESC, l.id ASC
-                    """
-                ).fetchall()
-
-                for lr in link_rows:
-                    item_id = int(lr["item_id"])
-                    linked_assets_map.setdefault(item_id, []).append(str(lr["asset_path"]))
+                linked_assets_map = list_linked_asset_paths_by_item(conn)
 
             # ------------------------------------------------------------
             # Build CatalogItem list
@@ -300,25 +160,10 @@ class CatalogDB:
                                 images = [self.from_db_path(p) for p in s.split(";") if p.strip()]
 
                 items.append(
-                    CatalogItem(
-                        id=item_id,
-                        code=str(get("code", "") or ""),
-                        description=str(get("description", "") or ""),
-                        description_excel=str(get("description_excel", "") or ""),
-                        description_vietnames_from_excel=str(get("description_vietnames_from_excel", "") or ""),
-                        pdf_path=self.from_db_path(str(get("pdf_path", "") or "")),
-                        page=(int(get("page")) if get("page") not in (None, "") else None),
+                    map_catalog_item(
+                        get,
                         images=images,
-                        validated=bool(int(get("validated") or 0)),
-                        validated_at=str(get("validated_at", "") or ""),
-                        category=str(get("category", "") or ""),
-                        author=str(get("author", "") or ""),
-                        dimension=str(get("dimension", "") or ""),
-                        small_description=str(get("small_description", "") or ""),
-                        shape=str(get("shape", "") or ""),
-                        blade_tip=str(get("blade_tip", "") or ""),
-                        surface_treatment=str(get("surface_treatment", "") or ""),
-                        material=str(get("material", "") or ""),
+                        resolve_path=self.from_db_path,
                     )
                 )
 
@@ -335,17 +180,7 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            r = conn.execute(
-                """
-                SELECT id, code, description, page,
-                       description_excel, pdf_path, category, author, dimension, small_description,
-                       shape, blade_tip, surface_treatment, material
-                       , description_vietnames_from_excel, validated, validated_at
-                FROM items
-                WHERE code=?
-                """,
-                (code,),
-            ).fetchone()
+            r = get_item_row_by_code(conn, code=code)
             if not r:
                 return None
 
@@ -353,25 +188,10 @@ class CatalogDB:
 
             images = self.list_asset_paths_for_item(item_id, conn=conn)
 
-            return CatalogItem(
-                id=item_id,
-                code=str(r["code"]),
-                description=str(r["description"] or ""),
-                description_excel=str(r["description_excel"] or ""),
-                description_vietnames_from_excel=str(r["description_vietnames_from_excel"] or ""),
-                pdf_path=self.from_db_path(str(r["pdf_path"] or "")),
-                page=(int(r["page"]) if r["page"] is not None else None),
-                category=str(r["category"] or ""),
-                author=str(r["author"] or ""),
-                dimension=str(r["dimension"] or ""),
-                small_description=str(r["small_description"] or ""),
-                shape=str(r["shape"] or ""),
-                blade_tip=str(r["blade_tip"] or ""),
-                surface_treatment=str(r["surface_treatment"] or ""),
-                material=str(r["material"] or ""),
+            return map_catalog_item(
+                lambda key, default=None: r[key] if key in r.keys() else default,
                 images=images,
-                validated=bool(int(r["validated"] or 0)),
-                validated_at=str(r["validated_at"] or ""),
+                resolve_path=self.from_db_path,
             )
         finally:
             if owns:
@@ -405,27 +225,18 @@ class CatalogDB:
         try:
             pdf_db = self.to_db_path(pdf_path)
             asset_db = self.to_db_path(asset_path)
-            row = conn.execute(
-                "SELECT id FROM assets WHERE pdf_path=? AND page=? AND asset_path=?",
-                (pdf_db, int(page), asset_db),
-            ).fetchone()
-            if row:
-                return int(row["id"])
-
-            x0 = y0 = x1 = y1 = None
-            if bbox is not None:
-                x0, y0, x1, y1 = bbox
-
-            cur = conn.execute(
-                """
-                INSERT INTO assets(pdf_path, page, asset_path, x0, y0, x1, y1, source, sha256)
-                VALUES(?,?,?,?,?,?,?,?,?)
-                """,
-                (pdf_db, int(page), asset_db, x0, y0, x1, y1, source, sha256),
+            asset_id = repository_upsert_asset(
+                conn,
+                pdf_path=pdf_db,
+                page=page,
+                asset_path=asset_db,
+                bbox=bbox,
+                source=source,
+                sha256=sha256,
             )
             if owns:
                 conn.commit()
-            return int(cur.lastrowid)
+            return asset_id
         finally:
             if owns:
                 conn.close()
@@ -447,15 +258,11 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            return conn.execute(
-                """
-                SELECT id, pdf_path, page, asset_path, x0, y0, x1, y1, source, sha256, created_at
-                FROM assets
-                WHERE pdf_path=? AND page=?
-                ORDER BY id ASC
-                """,
-                (self.to_db_path(pdf_path), int(page)),
-            ).fetchall()
+            return repository_list_assets_for_page(
+                conn,
+                pdf_path=self.to_db_path(pdf_path),
+                page=page,
+            )
         finally:
             if owns:
                 conn.close()
@@ -481,12 +288,14 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO item_asset_links(item_id, asset_id, match_method, score, verified, is_primary)
-                VALUES(?,?,?,?,?,?)
-                """,
-                (int(item_id), int(asset_id), match_method, score, 1 if verified else 0, 1 if is_primary else 0),
+            repository_link_asset_to_item(
+                conn,
+                item_id=item_id,
+                asset_id=asset_id,
+                match_method=match_method,
+                score=score,
+                verified=verified,
+                is_primary=is_primary,
             )
             if owns:
                 conn.commit()
@@ -508,9 +317,10 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            conn.execute(
-                "DELETE FROM item_asset_links WHERE item_id=? AND asset_id=?",
-                (int(item_id), int(asset_id)),
+            repository_unlink_asset_from_item(
+                conn,
+                item_id=item_id,
+                asset_id=asset_id,
             )
             conn.commit()
         finally:
@@ -533,17 +343,11 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            rows = conn.execute(
-                """
-                SELECT a.asset_path
-                FROM item_asset_links l
-                JOIN assets a ON a.id = l.asset_id
-                WHERE l.item_id=?
-                ORDER BY l.is_primary DESC, l.id ASC
-                """,
-                (int(item_id),),
-            ).fetchall()
-            return [self.from_db_path(str(r["asset_path"])) for r in rows]
+            return repository_list_asset_paths_for_item(
+                conn,
+                item_id=item_id,
+                resolve_path=self.from_db_path,
+            )
         finally:
             if owns:
                 conn.close()
@@ -563,17 +367,11 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            rows = conn.execute(
-                """
-                SELECT a.asset_path AS asset_path, a.source AS source
-                FROM item_asset_links l
-                JOIN assets a ON a.id = l.asset_id
-                WHERE l.item_id=?
-                ORDER BY l.is_primary DESC, l.id ASC
-                """,
-                (int(item_id),),
-            ).fetchall()
-            return [(self.from_db_path(str(r["asset_path"])), str(r["source"] or "")) for r in rows]
+            return repository_list_image_sources_for_item(
+                conn,
+                item_id=item_id,
+                resolve_path=self.from_db_path,
+            )
         finally:
             if owns:
                 conn.close()
@@ -590,15 +388,10 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            return conn.execute(
-                """
-                SELECT asset_id, is_primary, verified, match_method, score
-                FROM item_asset_links
-                WHERE item_id=?
-                ORDER BY is_primary DESC, id ASC
-                """,
-                (item_id,),
-            ).fetchall()
+            return repository_list_asset_links_for_item(
+                conn,
+                item_id=item_id,
+            )
         finally:
             if owns:
                 conn.close()
@@ -614,7 +407,7 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            conn.execute("DELETE FROM item_asset_links WHERE item_id=?", (item_id,))
+            repository_clear_asset_links_for_item(conn, item_id=item_id)
             if owns:
                 conn.commit()
         finally:
@@ -633,19 +426,10 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            # ensure link exists (idempotent behavior)
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO item_asset_links(item_id, asset_id, match_method, score, verified, is_primary)
-                VALUES(?, ?, 'manual', NULL, 1, 0)
-                """,
-                (item_id, asset_id),
-            )
-
-            conn.execute("UPDATE item_asset_links SET is_primary=0 WHERE item_id=?", (item_id,))
-            conn.execute(
-                "UPDATE item_asset_links SET is_primary=1 WHERE item_id=? AND asset_id=?",
-                (item_id, asset_id),
+            repository_set_primary_asset_for_item(
+                conn,
+                item_id=item_id,
+                asset_id=asset_id,
             )
             conn.commit()
         finally:
@@ -670,63 +454,14 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            rows = conn.execute(
-                """
-                SELECT l.asset_id, l.match_method, l.score, l.verified, l.is_primary, a.asset_path
-                FROM item_asset_links l
-                JOIN assets a ON a.id = l.asset_id
-                WHERE l.item_id=?
-                ORDER BY l.is_primary DESC, l.id ASC
-                """,
-                (int(item_id),),
-            ).fetchall()
-            if not rows:
+            reordered = repository_reorder_asset_links(
+                conn,
+                item_id=item_id,
+                ordered_paths=ordered_paths,
+                resolve_path=self.from_db_path,
+            )
+            if not reordered:
                 return False
-
-            # Support duplicate paths by storing a queue per normalized path.
-            buckets: dict[str, list[sqlite3.Row]] = {}
-            for r in rows:
-                key = str(self.from_db_path(str(r["asset_path"] or "")))
-                buckets.setdefault(key, []).append(r)
-
-            ordered_rows: list[sqlite3.Row] = []
-            used_asset_ids: set[int] = set()
-            for p in ordered_paths or []:
-                key = str(p or "")
-                q = buckets.get(key)
-                if q:
-                    picked = q.pop(0)
-                    aid = int(picked["asset_id"])
-                    if aid not in used_asset_ids:
-                        used_asset_ids.add(aid)
-                        ordered_rows.append(picked)
-
-            # Append remaining links not referenced in ordered_paths.
-            for r in rows:
-                aid = int(r["asset_id"])
-                if aid not in used_asset_ids:
-                    used_asset_ids.add(aid)
-                    ordered_rows.append(r)
-
-            if not ordered_rows:
-                return False
-
-            conn.execute("DELETE FROM item_asset_links WHERE item_id=?", (int(item_id),))
-            for r in ordered_rows:
-                conn.execute(
-                    """
-                    INSERT INTO item_asset_links(item_id, asset_id, match_method, score, verified, is_primary)
-                    VALUES(?,?,?,?,?,?)
-                    """,
-                    (
-                        int(item_id),
-                        int(r["asset_id"]),
-                        str(r["match_method"] or "manual"),
-                        r["score"],
-                        int(r["verified"] or 0),
-                        int(r["is_primary"] or 0),
-                    ),
-                )
             conn.commit()
             return True
         finally:
@@ -771,124 +506,26 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            row = conn.execute(
-                "SELECT id, description_excel, description_vietnames_from_excel, pdf_path, validated, validated_at FROM items WHERE code=?",
-                (code,),
-            ).fetchone()
-
-            def _resolve_validated_at() -> str:
-                # Keep existing validation time when already validated.
-                existing_validated = bool(int(row["validated"] or 0)) if row else False
-                existing_validated_at = str((row["validated_at"] if row else "") or "")
-                if validated_at is not None:
-                    return str(validated_at or "").strip()
-                if not validated:
-                    return ""
-                if existing_validated and existing_validated_at:
-                    return existing_validated_at
-                return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            validated_at_value = _resolve_validated_at()
-
-            if row:
-                item_id = int(row["id"])
-                if description_excel is None:
-                    description_excel = str(row["description_excel"] or "")
-                if description_vietnames_from_excel is None:
-                    description_vietnames_from_excel = str(row["description_vietnames_from_excel"] or "")
-                if pdf_path is None:
-                    pdf_path = str(row["pdf_path"] or "")
-                pdf_path = self.to_db_path(str(pdf_path or ""))
-                conn.execute(
-                    """
-                    UPDATE items
-                    SET description=?,
-                        description_excel=?,
-                        description_vietnames_from_excel=?,
-                        pdf_path=?,
-                        page=?,
-                        category=?,
-                        author=?,
-                        dimension=?,
-                        small_description=?,
-                        shape=?,
-                        blade_tip=?,
-                        surface_treatment=?,
-                        material=?,
-                        validated=?,
-                        validated_at=?
-                    WHERE id=?
-                    """,
-                    (
-                        description,
-                        description_excel,
-                        description_vietnames_from_excel,
-                        pdf_path,
-                        page,
-                        category,
-                        author,
-                        dimension,
-                        small_description,
-                        shape,
-                        blade_tip,
-                        surface_treatment,
-                        material,
-                        1 if validated else 0,
-                        validated_at_value,
-                        item_id,
-                    ),
-                )
-            else:
-                if description_excel is None:
-                    description_excel = ""
-                if description_vietnames_from_excel is None:
-                    description_vietnames_from_excel = ""
-                if pdf_path is None:
-                    pdf_path = ""
-                pdf_path = self.to_db_path(str(pdf_path or ""))
-                cur = conn.execute(
-                    """
-                    INSERT INTO items(
-                        code,
-                        description,
-                        description_excel,
-                        description_vietnames_from_excel,
-                        pdf_path,
-                        page,
-                        validated,
-                        validated_at,
-                        category,
-                        author,
-                        dimension,
-                        small_description,
-                        shape,
-                        blade_tip,
-                        surface_treatment,
-                        material
-                    )
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    """,
-                    (
-                        code,
-                        description,
-                        description_excel,
-                        description_vietnames_from_excel,
-                        pdf_path,
-                        page,
-                        1 if validated else 0,
-                        validated_at_value,
-                        category,
-                        author,
-                        dimension,
-                        small_description,
-                        shape,
-                        blade_tip,
-                        surface_treatment,
-                        material,
-                    ),
-                )
-                item_id = int(cur.lastrowid)
-
+            item_id = repository_upsert_by_code(
+                conn,
+                code=code,
+                page=page,
+                category=category,
+                author=author,
+                dimension=dimension,
+                small_description=small_description,
+                shape=shape,
+                blade_tip=blade_tip,
+                surface_treatment=surface_treatment,
+                material=material,
+                validated=validated,
+                validated_at=validated_at,
+                description=description,
+                description_excel=description_excel,
+                description_vietnames_from_excel=description_vietnames_from_excel,
+                pdf_path=pdf_path,
+                store_path=self.to_db_path,
+            )
             conn.commit()
             return item_id
         finally:
@@ -966,12 +603,13 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            cur = conn.execute(
-                "UPDATE items SET description_excel=? WHERE code=?",
-                (description, code),
+            updated = repository_update_description(
+                conn,
+                code=code,
+                description=description,
             )
             conn.commit()
-            return cur.rowcount > 0
+            return updated
         finally:
             if owns:
                 conn.close()
@@ -1002,47 +640,16 @@ class CatalogDB:
             self._ensure_columns(conn)
 
         try:
-            if only_fill_empty:
-                cur = conn.execute(
-                    """
-                    UPDATE items
-                    SET description_vietnames_from_excel =
-                            CASE
-                                WHEN TRIM(COALESCE(description_vietnames_from_excel, '')) = ''
-                                THEN ?
-                                ELSE description_vietnames_from_excel
-                            END,
-                        description_excel =
-                            CASE
-                                WHEN TRIM(COALESCE(description_excel, '')) = ''
-                                THEN ?
-                                ELSE description_excel
-                            END
-                    WHERE code=?
-                    """,
-                    (
-                        str(description_vi or "").strip(),
-                        str(description_en or "").strip(),
-                        code,
-                    ),
-                )
-            else:
-                cur = conn.execute(
-                    """
-                    UPDATE items
-                    SET description_vietnames_from_excel=?,
-                        description_excel=?
-                    WHERE code=?
-                    """,
-                    (
-                        str(description_vi or "").strip(),
-                        str(description_en or "").strip(),
-                        code,
-                    ),
-                )
+            updated = repository_update_excel_descriptions(
+                conn,
+                code=code,
+                description_vi=str(description_vi or "").strip(),
+                description_en=str(description_en or "").strip(),
+                only_fill_empty=only_fill_empty,
+            )
             if owns:
                 conn.commit()
-            return bool(cur.rowcount)
+            return updated
         finally:
             if owns:
                 conn.close()

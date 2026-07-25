@@ -23,7 +23,9 @@ The active modules are:
 - `src/smartcatalog/main.py`: creates the Tk root, icon and splash screen, application state, database wrapper, and main window.
 - `src/smartcatalog/domain/models.py`: defines the active persisted/UI `CatalogItem` model. `state.py` re-exports it for compatibility.
 - `src/smartcatalog/state.py`: defines `AppState`, resolves runtime paths, creates data directories, and persists the selected catalog PDF.
-- `src/smartcatalog/db/catalog_db.py`: owns the live SQLite schema, compatibility column upgrades, path conversion, item CRUD, asset CRUD, and item/asset links.
+- `src/smartcatalog/db/catalog_db.py`: compatibility facade for connection lifecycle, public persistence calls, and existing commit policy.
+- `src/smartcatalog/db/schema.py` and `path_mapper.py`: live SQLite schema/compatibility upgrades and portable database-path policy.
+- `src/smartcatalog/db/item_repository.py` and `asset_repository.py`: item mapping/CRUD and asset/link SQL, ordering, and mutation policy behind `CatalogDB`.
 - `src/smartcatalog/loader/extract_item.py`: performs coordinate- and regex-sensitive extraction of item fields from PDF pages.
 - `src/smartcatalog/loader/pdf_loader.py`: scans the selected PDF, upserts extracted items, finds the nearest image, stores it as an asset, and links it to the item.
 - `src/smartcatalog/loader/excel_loader.py`: tolerantly detects header rows, code columns, and Vietnamese/English description columns across workbooks.
