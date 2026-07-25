@@ -107,7 +107,7 @@ Approved to start next phase: YES | NO
 | 11 | Improve error and resource handling | Complete | Checkpoint 11 commit |
 | 12 | Resolve legacy code and dependencies | Complete | Checkpoint 12 commit |
 | 13 | Verified naming and encoding cleanup | Complete | Checkpoint 13 commit |
-| 14 | Full regression and frozen release validation | Not started | — |
+| 14 | Full regression and frozen release validation | Complete | Final checkpoint commit |
 
 Update this table only after the corresponding checkpoint has been validated and committed.
 

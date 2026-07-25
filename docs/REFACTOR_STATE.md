@@ -5,14 +5,14 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 ## Current state
 
 ```text
-Program status: IN PROGRESS
+Program status: COMPLETE
 Current branch: refactor/behavior-preserving-cleanup
-Last completed phase: Phase 13 — Verified naming and encoding cleanup
-Last checkpoint commit: this checkpoint commit (Checkpoint 13)
-Next permitted phase: Phase 14 — Full regression and frozen release validation
-Production refactoring permitted: YES, within the next permitted phase only
-Reason: Characterization gates 0–4 and refactor gates 5–13 are complete
-Tracked worktree expected: clean
+Last completed phase: Phase 14 — Full regression and frozen release validation
+Last checkpoint commit: this checkpoint commit (final checkpoint)
+Next permitted phase: None — behavior-preserving refactor complete
+Production refactoring permitted: NO; begin future changes as separately scoped work
+Reason: Characterization, refactor, automated, source, frozen, and user-acceptance gates are complete
+Tracked worktree expected: clean after the final checkpoint
 Last updated: 2026-07-25
 ```
 
@@ -45,6 +45,9 @@ Current automated baseline:
 - Importing `smartcatalog` and `smartcatalog.main` with the repository virtual environment passes.
 - `git diff --check` passes.
 - Active production behavior is now separated through the completed Phase 5–8 boundaries while compatibility entry points remain in place.
+- Phase 14's disposable `build_exe.ps1` build passes; frozen first launch and
+  restart remain alive through five-second smokes and create the expected
+  runtime directory tree.
 
 Known validation limitation:
 
@@ -53,30 +56,18 @@ Known validation limitation:
 - Current PDF import writes the extracted PNG file but rolls back the asset/link rows because the caller-owned SQLite connection is not committed after linking. Phase 3 characterizes this existing behavior; fix it only as a separate approved bug change.
 - Phase 4 reopens generated workbooks with openpyxl and validates their XLSX/XML relationships, but desktop Excel visual inspection was not available in the automated checkpoint.
 - Phase 12 built successfully with PyInstaller 6.18.0 in disposable directories and passed a short frozen startup smoke; the full frozen workflow checklist remains unperformed. PyInstaller reported an optional `jinja2` hidden-import warning.
+- The user confirmed the source and frozen application workflows were working
+  correctly on 2026-07-25, completing the Phase 14 manual acceptance gate.
+- The initial Phase 14 build attempt revealed that `build_exe.ps1` used the
+  caller's working directory for PyInstaller outputs and rebuilt the
+  repository's already-untracked `build/` and `dist/` contents. The script
+  correction and incident are recorded in `docs/FINAL_VALIDATION.md`.
 
-## Next work: Phase 14 only
+## Refactor completion
 
-Follow the full Phase 14 definition in `docs/REFACTOR_PLAN.md`.
-
-Phase 14 must:
-
-- run the entire automated suite from the checkpoint state;
-- exercise supported workflows with disposable representative data;
-- build through the checked-in PyInstaller specification;
-- validate the frozen distribution, first-launch behavior, and restart;
-- update final architecture documentation and record all remaining limitations.
-
-Phase 14 must not:
-
-- use live or unbacked runtime/user data;
-- fix the recorded PDF asset-link transaction bug;
-- declare the refactor complete while required validation remains unexplained.
-
-Suggested final checkpoint commit:
-
-```text
-docs: finalize refactored architecture
-```
+The behavior-preserving cleanup program is complete. Future bug fixes or
+features must be separately scoped and must preserve the contributor-guide
+boundaries, disposable-data policy, and current automated baseline.
 
 ## New-session resume procedure
 

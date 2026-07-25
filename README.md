@@ -1,45 +1,43 @@
+# SmartCatalog
 
+SmartCatalog is a Windows-first Python/Tkinter application for importing,
+reviewing, editing, and exporting a medical product catalog.
 
-Step 1: Install Python and create virtual environment
+## Development setup
 
+From PowerShell in the repository root:
+
+```powershell
 python -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python run.py
+```
 
-venv\\Scripts\\activate
+If activation is blocked, change the execution policy only for the current
+PowerShell process:
 
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+```
 
+## Windows executable
 
-Step 2: Install Python dependencies
+Use the checked-in PyInstaller build:
 
-pip install -r requirements.txt
+```powershell
+.\build_exe.ps1
+```
 
+Deliver the complete `dist\SmartCatalog\` directory, including `_internal`.
+See [BUILD_EXE.md](BUILD_EXE.md) for build, validation, delivery, and licensing
+details.
 
+## Architecture and maintenance
 
-PS C:\\SmartCatalog\\SmartCatalog> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-
-PS C:\\SmartCatalog\\SmartCatalog> .\\venv\\Scripts\\Activate.ps1
-
-
-
-To generate into .exe application
-Install auto py to exe in the virtual environment
-pip install auto-py-to-exe
-
-PS C:\\SmartCatalog\\SmartCatalog> .\\venv\\Scripts\\Activate.ps1
-
-Launch it in the virtual environment
-auto-py-to-exe.exe
-
-For the configuration
-1) Set Script Location to:
-run.py
-
-2) Add search path
-Advanced → --paths → add:
-d:\dev\projects\SmartCatalog_V2\src
-
-3) Hidden imports
-Keep: fitz, PyMuPDF
-
-4) Collect all
-Advanced → --collect-all → add:
-pymupdf
+- [Contributor guide](AGENTS.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Refactor state](docs/REFACTOR_STATE.md)
+- [Refactor plan](docs/REFACTOR_PLAN.md)
+- [Refactor baseline and validation](docs/REFACTOR_BASELINE.md)
+- [Phase 14 validation evidence](docs/FINAL_VALIDATION.md)

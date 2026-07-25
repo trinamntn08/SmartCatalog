@@ -6,6 +6,10 @@ Build from PowerShell at the repository root:
 .\build_exe.ps1
 ```
 
+The script resolves paths from its own location, so invoking it by absolute
+path from another working directory produces `build/` and `dist/` beside the
+script rather than in the caller's directory.
+
 The client-ready folder is:
 
 ```text

@@ -167,3 +167,17 @@ Use this checklist in the later phases selected by `docs/REFACTOR_PLAN.md`.
 | 11 | This checkpoint commit | Passed: compile, imports, 84 tests with resource warnings treated as errors, missing-backup and delayed-callback failure tests, PDF image equivalence, Windows fixture cleanup, and diff check | Interactive error dialogs, destroyed-widget races, locked Excel files, and desktop Excel checks not run | Backup failures now carry operation/path context, delayed errors retain exception data, active PDF Pillow resources close deterministically, and broad handlers are classified in the audit |
 | 12 | This checkpoint commit | Passed: compile, imports, 86 tests, tracked-reference audit, disposable PyInstaller 6.18.0 build, frozen startup smoke, and diff check | Full frozen workflow checklist not run; build emitted the existing optional `jinja2` hidden-import warning | Six unwired modules and empty package markers removed; six proven-unused direct requirements removed; dispositions and active replacements documented |
 | 13 | This checkpoint commit | Passed: compile, imports, 88 tests, canonical/compatibility callback checks, strict UTF-8 decoding, mojibake-marker scan, and diff check | Interactive native-language UI text review not run | Three workflow callbacks renamed with compatibility delegates; toolbar/tests migrated; obsolete private utility wrappers and no-op class ellipsis removed; no text conversion performed |
+
+## Phase 14 validation status
+
+The automated suite, disposable checked-in build script, frozen first-launch
+directory creation, and frozen restart smoke passed on 2026-07-25. Detailed
+evidence and the build-output path incident are recorded in
+`docs/FINAL_VALIDATION.md`.
+
+The user confirmed on 2026-07-25 that the source and frozen application
+workflows were working correctly, completing the manual acceptance gate.
+
+| Phase | Commit | Automated result | Manual result | Notes |
+|---|---|---|---|---|
+| 14 | This checkpoint commit | Passed: compile, imports, 88 tests, disposable `build_exe.ps1` build, first-launch directory checks, restart smoke, and diff check | Passed: user confirmed source and frozen workflows operate correctly | Final architecture/build documentation updated; build output is now anchored to the script directory; known characterized PDF transaction behavior remains deferred |

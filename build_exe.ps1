@@ -9,9 +9,15 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
     throw "Virtual-environment Python not found: $pythonExe"
 }
 
-& $pythonExe -m PyInstaller --clean --noconfirm $specPath
-if ($LASTEXITCODE -ne 0) {
-    throw "PyInstaller failed with exit code $LASTEXITCODE"
+Push-Location $projectRoot
+try {
+    & $pythonExe -m PyInstaller --clean --noconfirm $specPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "PyInstaller failed with exit code $LASTEXITCODE"
+    }
+}
+finally {
+    Pop-Location
 }
 
 $iconTarget = Join-Path $distRoot "icons"
