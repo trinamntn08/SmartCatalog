@@ -164,7 +164,7 @@ class ExportTestCase(unittest.TestCase):
                 ReviewDialogStub,
             ),
         ):
-            MainWindow.on_search_images_from_excel(window)
+            MainWindow.on_export_catalog(window)
 
         return results, statuses, captured_issues
 

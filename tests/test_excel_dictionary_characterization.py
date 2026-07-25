@@ -24,17 +24,19 @@ from smartcatalog.loader.excel_loader import (
     normalize_code_soft,
 )
 from smartcatalog.services.excel_catalog_import import import_excel_catalog
-from smartcatalog.ui.main_window import (
-    MainWindow,
-    _build_db_code_index,
-    _get_image_anchor_row,
-    _image_to_pil,
-    _sanitize_filename,
+from smartcatalog.ui.main_window import MainWindow
+from smartcatalog.utils.code_normalization import (
+    build_unique_normalized_code_index,
 )
 from smartcatalog.utils.description_dictionary import (
     import_dictionary_into_db,
     read_description_dictionary,
     resolve_description_dictionary,
+)
+from smartcatalog.utils.filename_utils import sanitize_filename
+from smartcatalog.utils.workbook_images import (
+    get_image_anchor_row,
+    image_to_pil,
 )
 
 
@@ -166,7 +168,7 @@ class ExcelLoaderCharacterizationTests(unittest.TestCase):
 
     def test_normalized_index_keeps_only_unique_mappings(self) -> None:
         self.assertEqual(normalize_code_soft(" 12 – 345 — 67 "), "12-345-67")
-        index = _build_db_code_index(
+        index = build_unique_normalized_code_index(
             ["12-345-67", "98-765-43", "98–765–43", "77 777 77"]
         )
 
@@ -223,10 +225,10 @@ class EmbeddedWorkbookImageCharacterizationTests(unittest.TestCase):
         workbook = load_workbook(workbook_path)
         try:
             images = list(workbook["Catalog Sheet"]._images)
-            anchors = [_get_image_anchor_row(image) for image in images]
+            anchors = [get_image_anchor_row(image) for image in images]
             hashes = []
             for embedded in images:
-                pil_image = _image_to_pil(embedded)
+                pil_image = image_to_pil(embedded)
                 self.assertIsNotNone(pil_image)
                 try:
                     buffer = io.BytesIO()
@@ -242,9 +244,9 @@ class EmbeddedWorkbookImageCharacterizationTests(unittest.TestCase):
         self.assertNotEqual(hashes[0], hashes[3])
 
     def test_current_filename_sanitization_is_deterministic(self) -> None:
-        self.assertEqual(_sanitize_filename("Catalog Sheet"), "Catalog_Sheet")
-        self.assertEqual(_sanitize_filename("12 / 345 / 67"), "12_345_67")
-        self.assertEqual(_sanitize_filename("***"), "item")
+        self.assertEqual(sanitize_filename("Catalog Sheet"), "Catalog_Sheet")
+        self.assertEqual(sanitize_filename("12 / 345 / 67"), "12_345_67")
+        self.assertEqual(sanitize_filename("***"), "item")
 
 
 class ExcelImportWorkflowCharacterizationTests(unittest.TestCase):
@@ -339,7 +341,7 @@ class ExcelImportWorkflowCharacterizationTests(unittest.TestCase):
             patch("smartcatalog.ui.main_window.messagebox.showwarning"),
             patch("smartcatalog.ui.main_window.messagebox.showerror"),
         ):
-            MainWindow.on_build_excel_db(window)
+            MainWindow.on_import_excel_catalog(window)
 
         exact = self.db.get_item_by_code("12-345-67")
         normalized = self.db.get_item_by_code("98-765-43")

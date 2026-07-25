@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Callable, Optional, TYPE_CHECKING
 import os
 if TYPE_CHECKING:
-    from PIL import Image, ImageTk
+    from PIL import ImageTk
 from smartcatalog.domain.models import CatalogItem
 from smartcatalog.state import AppState
 from smartcatalog.ui.widgets.scrollable_frame import ScrollableFrame
@@ -20,39 +20,7 @@ from smartcatalog.ui.controllers.items_controller import ItemsControllerMixin
 from smartcatalog.ui.controllers.item_form_controller import ItemFormControllerMixin
 from smartcatalog.ui.controllers.workflows_controller import WorkflowsControllerMixin
 from smartcatalog.ui.pdf_crop_window import PdfCropWindow
-from smartcatalog.utils.code_normalization import (
-    build_unique_normalized_code_index,
-    normalize_code_soft,
-)
-from smartcatalog.utils.filename_utils import sanitize_filename
-from smartcatalog.utils.text_normalization import normalize_header_text
 from smartcatalog.utils.ui_dispatch import dispatch_to_tk
-from smartcatalog.utils.workbook_images import get_image_anchor_row, image_to_pil
-
-def _normalize_code_soft(s: str) -> str:
-    return normalize_code_soft(s)
-
-def _normalize_header_text(s: str) -> str:
-    return normalize_header_text(s)
-
-
-def _sanitize_filename(s: str) -> str:
-    return sanitize_filename(s)
-
-
-def _get_image_anchor_row(img) -> Optional[int]:
-    return get_image_anchor_row(img)
-
-
-def _image_to_pil(img) -> Optional[Image.Image]:
-    return image_to_pil(img)
-
-def _build_db_code_index(db_codes: list[str]) -> dict[str, str]:
-    """
-    normalized_code -> original_db_code
-    only keep unique mappings to avoid wrong updates.
-    """
-    return build_unique_normalized_code_index(db_codes)
 
 def _safe_ui(root: tk.Misc, fn: Callable[[], None]) -> None:
     dispatch_to_tk(root, fn)
@@ -66,7 +34,6 @@ class MainWindow(
                     ItemFormControllerMixin,
                     WorkflowsControllerMixin,
                 ):
-    ...
 
     def __init__(self, root: tk.Tk, state: Optional[AppState] = None):
         super().__init__(root, padding=10)
@@ -132,10 +99,10 @@ class MainWindow(
         self.toolbar = ttk.Frame(self)
         self.toolbar.pack(fill="x", pady=(0, 8))
 
-        self.btn_build_pdf = ttk.Button(self.toolbar, text="Tạo/Cập nhật CSDL từ PDF", command=self.on_choose_pdf_and_build_db)
+        self.btn_build_pdf = ttk.Button(self.toolbar, text="Tạo/Cập nhật CSDL từ PDF", command=self.on_import_pdf_catalog)
         self.btn_build_pdf.pack(side="left", padx=(0, 6))
         
-        self.btn_match_excel = ttk.Button(self.toolbar, text="Cập nhật CSDL từ Excel", command=self.on_build_excel_db)
+        self.btn_match_excel = ttk.Button(self.toolbar, text="Cập nhật CSDL từ Excel", command=self.on_import_excel_catalog)
         self.btn_match_excel.pack(side="left")
 
         self.btn_backup = ttk.Button(self.toolbar, text="💾 Backup CSDL", command=self.on_backup_data)
@@ -148,7 +115,7 @@ class MainWindow(
         self.btn_search_images = ttk.Button(
             self.toolbar,
             text="Xuất catalog từ danh sách Excel",
-            command=self.on_search_images_from_excel,
+            command=self.on_export_catalog,
         )
         self.btn_search_images.pack(side="left")
         self.btn_search_images_opts = ttk.Button(

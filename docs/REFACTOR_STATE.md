@@ -7,11 +7,11 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 ```text
 Program status: IN PROGRESS
 Current branch: refactor/behavior-preserving-cleanup
-Last completed phase: Phase 12 — Resolve legacy code and dependencies
-Last checkpoint commit: this checkpoint commit (Checkpoint 12)
-Next permitted phase: Phase 13 — Verified naming and encoding cleanup
+Last completed phase: Phase 13 — Verified naming and encoding cleanup
+Last checkpoint commit: this checkpoint commit (Checkpoint 13)
+Next permitted phase: Phase 14 — Full regression and frozen release validation
 Production refactoring permitted: YES, within the next permitted phase only
-Reason: Characterization gates 0–4 and refactor gates 5–12 are complete
+Reason: Characterization gates 0–4 and refactor gates 5–13 are complete
 Tracked worktree expected: clean
 Last updated: 2026-07-25
 ```
@@ -35,11 +35,12 @@ Existing untracked local directories may include `build/`, `dist/`, `input/`, `o
 | 9 | `1fdd9b6` | PDF page iteration, skip policy, persistence, image assignment, typed results, and callbacks extracted behind the existing loader entry point |
 | 10 | `1539c97` | Backup mechanics extracted into a typed service and top-level PDF/backup/Excel/export adapters moved into a workflow controller |
 | 11 | `d867b11` | Backup failures made contextual, delayed error dispatch fixed, active PDF Pillow resources closed deterministically, and broad handlers audited |
-| 12 | This checkpoint commit | Unwired legacy modules and proven-unused direct dependencies removed; dispositions documented; disposable frozen build and startup validated |
+| 12 | `6abc6e0` | Unwired legacy modules and proven-unused direct dependencies removed; dispositions documented; disposable frozen build and startup validated |
+| 13 | This checkpoint commit | Workflow names clarified with compatibility delegates; obsolete private wrappers removed; UTF-8/mojibake audit automated without speculative text changes |
 
 Current automated baseline:
 
-- 86 tests pass, including resource-warning enforcement, compatibility wrappers, service boundaries, failure/resource handling, legacy absence, and active direct-requirement coverage.
+- 88 tests pass, including resource-warning enforcement, service boundaries, failure/resource handling, legacy absence, canonical/compatibility workflow names, and strict UTF-8 source checks.
 - `python -m compileall -q run.py src tests` passes.
 - Importing `smartcatalog` and `smartcatalog.main` with the repository virtual environment passes.
 - `git diff --check` passes.
@@ -53,27 +54,28 @@ Known validation limitation:
 - Phase 4 reopens generated workbooks with openpyxl and validates their XLSX/XML relationships, but desktop Excel visual inspection was not available in the automated checkpoint.
 - Phase 12 built successfully with PyInstaller 6.18.0 in disposable directories and passed a short frozen startup smoke; the full frozen workflow checklist remains unperformed. PyInstaller reported an optional `jinja2` hidden-import warning.
 
-## Next work: Phase 13 only
+## Next work: Phase 14 only
 
-Follow the full Phase 13 definition in `docs/REFACTOR_PLAN.md`.
+Follow the full Phase 14 definition in `docs/REFACTOR_PLAN.md`.
 
-Phase 13 may:
+Phase 14 must:
 
-- clarify verified misleading names with temporary compatibility wrappers;
-- remove obsolete wrappers only after all callers and tests migrate;
-- correct Vietnamese strings only when the intended text is verified.
+- run the entire automated suite from the checkpoint state;
+- exercise supported workflows with disposable representative data;
+- build through the checked-in PyInstaller specification;
+- validate the frozen distribution, first-launch behavior, and restart;
+- update final architecture documentation and record all remaining limitations.
 
-Phase 13 must not:
+Phase 14 must not:
 
-- perform global or speculative encoding conversion;
+- use live or unbacked runtime/user data;
 - fix the recorded PDF asset-link transaction bug;
-- remove compatibility entry points before callers migrate;
-- proceed to Phase 14 before Phase 13 tests, validation, state update, and checkpoint commit are complete.
+- declare the refactor complete while required validation remains unexplained.
 
-Suggested Phase 13 checkpoint commit:
+Suggested final checkpoint commit:
 
 ```text
-refactor: clarify names and verified UI text
+docs: finalize refactored architecture
 ```
 
 ## New-session resume procedure
@@ -90,7 +92,7 @@ At the beginning of a new session:
    git log -5 --oneline --decorate
    ```
 
-5. Confirm that the documented Checkpoint 12 commit or a later checkpoint is in the current branch history.
+5. Confirm that the documented Checkpoint 13 commit or a later checkpoint is in the current branch history.
 6. Preserve all unrelated tracked and untracked work.
 7. Run the current automated baseline before editing:
 
