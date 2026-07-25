@@ -1,45 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Optional
 
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-
-@dataclass
-class ExportPreflightItem:
-    code: str
-    item_id: Optional[int] = None
-    description_vi: str = ""
-    description_en: str = ""
-    pdf_description: str = ""
-    image_paths: list[str] = field(default_factory=list)
-    missing_vi: bool = False
-    missing_en: bool = False
-    missing_images: bool = False
-    unknown_code: bool = False
-
-    @property
-    def has_issue(self) -> bool:
-        return bool(
-            self.missing_vi
-            or self.missing_en
-            or self.missing_images
-            or self.unknown_code
-        )
-
-    def status_text(self) -> str:
-        statuses: list[str] = []
-        if self.unknown_code:
-            statuses.append("Mã không tồn tại")
-        if self.missing_vi:
-            statuses.append("Thiếu VI")
-        if self.missing_en:
-            statuses.append("Thiếu EN")
-        if self.missing_images:
-            statuses.append("Thiếu ảnh")
-        return ", ".join(statuses) or "Sẵn sàng"
+from smartcatalog.services.export_preflight import ExportPreflightItem
 
 
 class ExportReviewDialog:

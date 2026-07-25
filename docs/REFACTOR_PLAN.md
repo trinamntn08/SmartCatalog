@@ -101,7 +101,7 @@ Approved to start next phase: YES | NO
 | 5 | Extract pure shared utilities | Complete | Checkpoint 5 commit |
 | 6 | Split database internals behind `CatalogDB` | Complete | Checkpoint 6 commit |
 | 7 | Extract Excel database-import service | Complete | Checkpoint 7 commit |
-| 8 | Extract Excel export service | Not started | — |
+| 8 | Extract Excel export service | Complete | Checkpoint 8 commit |
 | 9 | Extract PDF import service | Not started | — |
 | 10 | Extract backup service and reduce `MainWindow` | Not started | — |
 | 11 | Improve error and resource handling | Not started | — |

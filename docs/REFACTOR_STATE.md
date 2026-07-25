@@ -7,11 +7,11 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 ```text
 Program status: IN PROGRESS
 Current branch: refactor/behavior-preserving-cleanup
-Last completed phase: Phase 7 — Extract Excel database-import service
-Last checkpoint commit: this checkpoint commit (Checkpoint 7)
-Next permitted phase: Phase 8 — Extract Excel export service
+Last completed phase: Phase 8 — Extract Excel export service
+Last checkpoint commit: this checkpoint commit (Checkpoint 8)
+Next permitted phase: Phase 9 — Extract PDF import service
 Production refactoring permitted: YES, within the next permitted phase only
-Reason: Characterization gates 0–4 and refactor gates 5–7 are complete
+Reason: Characterization gates 0–4 and refactor gates 5–8 are complete
 Tracked worktree expected: clean
 Last updated: 2026-07-25
 ```
@@ -30,15 +30,16 @@ Existing untracked local directories may include `build/`, `dist/`, `input/`, `o
 | 4 | `9488c47` | Export matching, preflight, descriptions, images, workbook structure, branding, and package relationships characterized |
 | 5 | `c24589a` | Active domain model and proven normalization, filename, hashing, workbook-image, and Tk-dispatch policies extracted with compatibility entry points |
 | 6 | `6858482` | Schema, path mapping, item mapping/CRUD, and asset/link operations separated behind the existing CatalogDB facade |
-| 7 | This checkpoint commit | Excel parsing, embedded-image extraction, database updates, and typed import results extracted behind a thin Tk UI adapter |
+| 7 | `18869cf` | Excel parsing, embedded-image extraction, database updates, and typed import results extracted behind a thin Tk UI adapter |
+| 8 | This checkpoint commit | Workbook reading, export preflight, matching, output generation, branding, and typed results extracted behind a thin Tk UI adapter |
 
 Current automated baseline:
 
-- 75 tests pass, including resource-warning enforcement, compatibility-wrapper equivalence, database module-boundary checks, and extracted Excel import service equivalence.
+- 77 tests pass, including resource-warning enforcement, compatibility-wrapper equivalence, database module-boundary checks, Excel import service equivalence, and Tk-free export service coverage.
 - `python -m compileall -q run.py src tests` passes.
 - Importing `smartcatalog` and `smartcatalog.main` with the repository virtual environment passes.
 - `git diff --check` passes.
-- No production application code has been changed by the refactor program.
+- Active production behavior is now separated through the completed Phase 5–8 boundaries while compatibility entry points remain in place.
 
 Known validation limitation:
 
@@ -47,29 +48,28 @@ Known validation limitation:
 - Current PDF import writes the extracted PNG file but rolls back the asset/link rows because the caller-owned SQLite connection is not committed after linking. Phase 3 characterizes this existing behavior; fix it only as a separate approved bug change.
 - Phase 4 reopens generated workbooks with openpyxl and validates their XLSX/XML relationships, but desktop Excel visual inspection was not available in the automated checkpoint.
 
-## Next work: Phase 8 only
+## Next work: Phase 9 only
 
-Follow the full Phase 8 definition in `docs/REFACTOR_PLAN.md`.
+Follow the full Phase 9 definition in `docs/REFACTOR_PLAN.md`.
 
-Phase 8 may extract the Excel export workflow into:
+Phase 9 may extract the PDF import workflow into:
 
-- workbook product reading and exact/unique-normalized matching;
-- preflight issue collection and explicit edited-description data;
-- workbook generation, branding, and typed export results;
-- a thin UI adapter retaining dialogs and the interactive review dialog.
+- an explicit parsing, update-policy, persistence, and image-assignment pipeline;
+- injected existing-item decisions and status callbacks;
+- a compatibility wrapper retaining the current public loader entry point.
 
-Phase 8 must not:
+Phase 9 must not:
 
-- change selected-workbook mutation, matching, descriptions, image ordering/rotation, formatting, branding, relationships, or print settings;
+- tune extraction geometry, regexes, page conversion, matching, hashes, paths, provenance, ordering, or skip rules;
 - fix the recorded PDF asset-link transaction bug;
-- move the interactive review dialog out of the UI layer;
-- begin PDF service extraction;
-- proceed to Phase 9 before Phase 8 tests, validation, state update, and checkpoint commit are complete.
+- redesign transaction boundaries;
+- begin backup or broader `MainWindow` reduction;
+- proceed to Phase 10 before Phase 9 tests, validation, state update, and checkpoint commit are complete.
 
-Suggested Phase 8 checkpoint commit:
+Suggested Phase 9 checkpoint commit:
 
 ```text
-refactor: extract catalog export service
+refactor: extract PDF import service
 ```
 
 ## New-session resume procedure
@@ -86,7 +86,7 @@ At the beginning of a new session:
    git log -5 --oneline --decorate
    ```
 
-5. Confirm that the documented Checkpoint 7 commit or a later checkpoint is in the current branch history.
+5. Confirm that the documented Checkpoint 8 commit or a later checkpoint is in the current branch history.
 6. Preserve all unrelated tracked and untracked work.
 7. Run the current automated baseline before editing:
 

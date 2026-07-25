@@ -16,6 +16,15 @@ from tests.support.fixtures import TemporaryProject, create_image_fixture
 from tests.support.snapshots import snapshot_workbook, snapshot_xlsx_package
 
 from smartcatalog.db.catalog_db import CatalogDB
+from smartcatalog.services.catalog_export import (
+    CatalogExportOptions,
+    export_catalog,
+)
+from smartcatalog.services.export_preflight import (
+    ExportPreflightItem as ServiceExportPreflightItem,
+    prepare_export_preflight,
+)
+from smartcatalog.services.workbook_product_reader import read_workbook_products
 from smartcatalog.ui.export_review_dialog import ExportPreflightItem
 from smartcatalog.ui.main_window import MainWindow
 from smartcatalog.utils.post_processing import (
@@ -161,6 +170,9 @@ class ExportTestCase(unittest.TestCase):
 
 
 class PreflightCharacterizationTests(unittest.TestCase):
+    def test_ui_reexports_service_preflight_item(self) -> None:
+        self.assertIs(ExportPreflightItem, ServiceExportPreflightItem)
+
     def test_issue_flags_and_status_text_follow_current_priority(self) -> None:
         ready = ExportPreflightItem(code="12-345-67")
         issue = ExportPreflightItem(
@@ -176,6 +188,57 @@ class PreflightCharacterizationTests(unittest.TestCase):
         status = issue.status_text()
         self.assertLess(status.index("VI"), status.index("EN"))
         self.assertIn("98", issue.code)
+
+
+class ExportServiceBoundaryTests(ExportTestCase):
+    def test_reader_preflight_and_writer_are_callable_without_tkinter(self) -> None:
+        self.create_item(
+            code="12-345-67",
+            description_vi="Vietnamese",
+            description_en="English",
+            image_specs=[("service.png", (40, 30), (20, 40, 60))],
+        )
+        path = self.create_input_workbook(
+            [("12-345-67", 2), ("77-777-77", 5)],
+            include_old_output=True,
+        )
+
+        rows = read_workbook_products(path)
+        self.assertEqual(
+            [(row.code, row.quantity) for row in rows],
+            [("12-345-67", "2"), ("77-777-77", "5")],
+        )
+        preflight = prepare_export_preflight(
+            rows,
+            db=self.db,
+            include_description_vi=True,
+            include_description_en=True,
+        )
+        self.assertFalse(preflight.issues[0].has_issue)
+        self.assertTrue(preflight.issues[1].unknown_code)
+
+        result = export_catalog(
+            path,
+            preflight.rows,
+            db=self.db,
+            project_dir=self.project.path(),
+            options=CatalogExportOptions(
+                include_description_vi=True,
+                include_description_en=True,
+                preserve_image_order=True,
+            ),
+        )
+
+        self.assertEqual(result.matched, 1)
+        self.assertEqual(result.total, 2)
+        self.assertEqual(result.images_found, 1)
+        self.assertEqual(result.missing_codes, ("77-777-77",))
+        workbook = load_workbook(path)
+        try:
+            self.assertEqual(workbook.sheetnames, ["Input", DEFAULT_SHEET_NAME])
+            self.assertEqual(workbook[DEFAULT_SHEET_NAME]["B2"].value, "12-345-67")
+        finally:
+            workbook.close()
 
 
 class PostProcessingSheetCharacterizationTests(ExportTestCase):
