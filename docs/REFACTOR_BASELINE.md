@@ -155,3 +155,4 @@ Use this checklist in the later phases selected by `docs/REFACTOR_PLAN.md`.
 |---|---|---|---|---|
 | 0 | `4926220` | Passed: compile, imports, 7 tests, diff check | Not run: interactive GUI unavailable during automated checkpoint | Disposable fixture/snapshot harness and baseline documentation complete |
 | 1 | `3326d1e` | Passed: compile, imports, 23 tests, diff check | Not required: characterization used fresh and upgraded disposable databases | Current schema, mapping, paths, ordering, and mixed transaction behavior locked down |
+| 2 | Checkpoint 2 commit | Passed: compile, imports, 35 tests with resource warnings treated as errors, diff check | Not required: headless workflow used generated XLSX/image fixtures and a disposable database | Excel parsing, matching, embedded-image rules, import workflow, and dictionary fill-only behavior locked down |

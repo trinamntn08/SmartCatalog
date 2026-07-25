@@ -7,11 +7,11 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 ```text
 Program status: IN PROGRESS
 Current branch: master
-Last completed phase: Phase 1 — Characterize database behavior
-Last checkpoint commit: 3326d1e
-Next permitted phase: Phase 2 — Characterize Excel and dictionary behavior
+Last completed phase: Phase 2 — Characterize Excel and dictionary behavior
+Last checkpoint commit: current HEAD (Checkpoint 2)
+Next permitted phase: Phase 3 — Characterize PDF and image behavior
 Production refactoring permitted: NO
-Reason: Phases 2, 3, and 4 characterization gates are not complete
+Reason: Phases 3 and 4 characterization gates are not complete
 Tracked worktree expected: clean
 Last updated: 2026-07-25
 ```
@@ -25,10 +25,11 @@ Existing untracked local directories may include `build/`, `dist/`, `input/`, `o
 | Plan baseline | `6c7b912` | Refactor phases and mandatory gates established |
 | 0 | `4926220` | Disposable test harness, generated fixtures, snapshots, environment baseline, and manual checklist |
 | 1 | `3326d1e` | Database schema, migration, mapping, path, item, asset, ordering, and transaction behavior characterized |
+| 2 | Current HEAD (Checkpoint 2) | Excel parsing, matching, embedded-image import, and dictionary fill-only behavior characterized |
 
 Current automated baseline:
 
-- 23 tests pass.
+- 35 tests pass, including resource-warning enforcement.
 - `python -m compileall -q run.py src tests` passes.
 - Importing `smartcatalog` and `smartcatalog.main` with the repository virtual environment passes.
 - `git diff --check` passes.
@@ -38,32 +39,33 @@ Known validation limitation:
 
 - The interactive GUI smoke test has not been run during the automated checkpoints. Use backed-up or disposable runtime data when it is performed.
 
-## Next work: Phase 2 only
+## Next work: Phase 3 only
 
-Follow the full Phase 2 definition in `docs/REFACTOR_PLAN.md`.
+Follow the full Phase 3 definition in `docs/REFACTOR_PLAN.md`.
 
-Phase 2 may add tests and generated test fixtures for:
+Phase 3 may add tests and generated or explicitly approved sanitized fixtures for:
 
-- flexible Excel header rows;
-- alternate code and description column names;
-- multiple, empty, and unsupported sheets;
-- exact, normalized, and ambiguous product-code matching;
-- English, Vietnamese, and bilingual descriptions;
-- duplicate codes across sheets;
-- embedded image anchoring and duplicate image content;
-- dictionary UTF-8 parsing, missing files, fill-empty behavior, and non-overwrite behavior.
+- zero-based PyMuPDF to one-based database page conversion;
+- item code, category, author, dimension, and description extraction;
+- reproducible single- and multi-column PDF layouts;
+- pages without products or usable images;
+- nearest-image selection and image conversion/hashing;
+- validated-item and Excel-image skip behavior;
+- existing-item update/skip callbacks;
+- repeated imports and document closure.
 
-Phase 2 must not:
+Phase 3 must not:
 
-- change production parsing or database behavior;
-- begin utility extraction;
-- modify live/runtime Excel files or `config/database/dictionary.csv`;
-- proceed to Phase 3 before Phase 2 tests, validation, state update, and checkpoint commit are complete.
+- tune extraction coordinates, clustering, geometry, or regexes;
+- change production PDF import or database behavior;
+- begin utility extraction or other structural refactoring;
+- inspect unapproved live/runtime PDFs;
+- proceed to Phase 4 before Phase 3 tests, validation, state update, and checkpoint commit are complete.
 
-Suggested Phase 2 checkpoint commit:
+Suggested Phase 3 checkpoint commit:
 
 ```text
-test: characterize Excel catalog workflows
+test: characterize PDF extraction and image linking
 ```
 
 ## New-session resume procedure
@@ -80,7 +82,7 @@ At the beginning of a new session:
    git log -5 --oneline --decorate
    ```
 
-5. Confirm that `3326d1e` or a later documented checkpoint is in the current branch history.
+5. Confirm that the documented Checkpoint 2 commit or a later checkpoint is in the current branch history.
 6. Preserve all unrelated tracked and untracked work.
 7. Run the current automated baseline before editing:
 
