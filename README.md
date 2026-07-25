@@ -30,6 +30,8 @@ Use the checked-in PyInstaller build:
 ```
 
 Deliver the complete `dist\SmartCatalog\` directory, including `_internal`.
+The build uses `build\` for intermediate files and recreates `dist\` as the
+clean release output.
 See [BUILD_EXE.md](BUILD_EXE.md) for build, validation, delivery, and licensing
 details.
 

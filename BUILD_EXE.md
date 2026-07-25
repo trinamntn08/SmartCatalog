@@ -16,6 +16,9 @@ The client-ready folder is:
 dist\SmartCatalog\
 ```
 
+Every build uses `build\` for PyInstaller work files, removes the previous
+`dist\` tree, and creates a fresh `dist\SmartCatalog\` release folder.
+
 Launch it with:
 
 ```text
@@ -35,6 +38,9 @@ The build includes:
 `build_exe.ps1` also copies the icon and branding image beside the executable
 in the layout expected by frozen-mode runtime paths. Use the script rather
 than invoking PyInstaller directly.
+
+Do not place files that must be preserved in `dist\`; it is replaced on every
+release build.
 
 It intentionally does not include the development database, imported PDFs, or
 product images. On first launch, SmartCatalog creates its writable

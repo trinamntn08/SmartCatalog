@@ -141,6 +141,9 @@ The supported build is the checked-in PyInstaller configuration:
 ```
 
 - The script expects `venv\Scripts\python.exe` and PyInstaller installed in that environment; PyInstaller is not listed in `requirements.txt`.
+- The script uses `build/` for PyInstaller intermediates and deliberately
+  removes/recreates `dist/` as the release output on every build. Never keep
+  user or irreplaceable files in `dist/`.
 - `SmartCatalog.spec` adds `src/`, collects `pymupdf`/`fitz`, includes the icon and branding image, and produces `dist/SmartCatalog/SmartCatalog.exe`.
 - Deliver the complete `dist/SmartCatalog/` folder, including `_internal`, not the executable alone.
 - The build intentionally excludes the development database and imported user content. First launch creates writable runtime directories beside the executable.
