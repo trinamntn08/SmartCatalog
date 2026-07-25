@@ -96,7 +96,7 @@ Approved to start next phase: YES | NO
 | 0 | Baseline and test harness | Complete | Checkpoint 0 commit |
 | 1 | Characterize database behavior | Complete | Checkpoint 1 commit |
 | 2 | Characterize Excel and dictionary behavior | Complete | Checkpoint 2 commit |
-| 3 | Characterize PDF and image behavior | Not started | — |
+| 3 | Characterize PDF and image behavior | Complete | Checkpoint 3 commit |
 | 4 | Characterize export and UI workflows | Not started | — |
 | 5 | Extract pure shared utilities | Not started | — |
 | 6 | Split database internals behind `CatalogDB` | Not started | — |
