@@ -7,11 +7,11 @@ This is the authoritative resume point for the behavior-preserving refactor. Rea
 ```text
 Program status: IN PROGRESS
 Current branch: refactor/behavior-preserving-cleanup
-Last completed phase: Phase 10 — Extract backup service and reduce MainWindow
-Last checkpoint commit: this checkpoint commit (Checkpoint 10)
-Next permitted phase: Phase 11 — Improve error and resource handling
+Last completed phase: Phase 11 — Improve error and resource handling
+Last checkpoint commit: this checkpoint commit (Checkpoint 11)
+Next permitted phase: Phase 12 — Resolve legacy code and dependencies
 Production refactoring permitted: YES, within the next permitted phase only
-Reason: Characterization gates 0–4 and refactor gates 5–10 are complete
+Reason: Characterization gates 0–4 and refactor gates 5–11 are complete
 Tracked worktree expected: clean
 Last updated: 2026-07-25
 ```
@@ -33,11 +33,12 @@ Existing untracked local directories may include `build/`, `dist/`, `input/`, `o
 | 7 | `18869cf` | Excel parsing, embedded-image extraction, database updates, and typed import results extracted behind a thin Tk UI adapter |
 | 8 | `04892f5` | Workbook reading, export preflight, matching, output generation, branding, and typed results extracted behind a thin Tk UI adapter |
 | 9 | `1fdd9b6` | PDF page iteration, skip policy, persistence, image assignment, typed results, and callbacks extracted behind the existing loader entry point |
-| 10 | This checkpoint commit | Backup mechanics extracted into a typed service and top-level PDF/backup/Excel/export adapters moved into a workflow controller |
+| 10 | `1539c97` | Backup mechanics extracted into a typed service and top-level PDF/backup/Excel/export adapters moved into a workflow controller |
+| 11 | This checkpoint commit | Backup failures made contextual, delayed error dispatch fixed, active PDF Pillow resources closed deterministically, and broad handlers audited |
 
 Current automated baseline:
 
-- 82 tests pass, including resource-warning enforcement, compatibility-wrapper equivalence, database module boundaries, Excel/export/PDF services, backup contents, and workflow-controller ownership.
+- 84 tests pass, including resource-warning enforcement, compatibility wrappers, service boundaries, backup failure context, delayed UI error dispatch, and active PDF image resource handling.
 - `python -m compileall -q run.py src tests` passes.
 - Importing `smartcatalog` and `smartcatalog.main` with the repository virtual environment passes.
 - `git diff --check` passes.
@@ -50,28 +51,28 @@ Known validation limitation:
 - Current PDF import writes the extracted PNG file but rolls back the asset/link rows because the caller-owned SQLite connection is not committed after linking. Phase 3 characterizes this existing behavior; fix it only as a separate approved bug change.
 - Phase 4 reopens generated workbooks with openpyxl and validates their XLSX/XML relationships, but desktop Excel visual inspection was not available in the automated checkpoint.
 
-## Next work: Phase 11 only
+## Next work: Phase 12 only
 
-Follow the full Phase 11 definition in `docs/REFACTOR_PLAN.md`.
+Follow the full Phase 12 definition in `docs/REFACTOR_PLAN.md`.
 
-Phase 11 may:
+Phase 12 may:
 
-- inventory and classify broad exception handlers;
-- make understood failure paths actionable with operation/path context;
-- close SQLite, PyMuPDF, Pillow, workbook, and temporary resources deterministically;
-- route worker failures through established UI error paths.
+- record a disposition for every listed legacy/unwired module;
+- remove, archive, migrate, or clearly retain each module after searching tracked callers;
+- prove dependency removals against source, tests, documentation, and the frozen build.
 
-Phase 11 must not:
+Phase 12 must not:
 
-- change successful workflow outputs or suppress previously visible failures;
+- revive legacy modules merely because they contain similar helpers;
 - fix the recorded PDF asset-link transaction bug;
-- mix unrelated naming, encoding, legacy-module, or dependency cleanup;
-- proceed to Phase 12 before Phase 11 tests, validation, state update, and checkpoint commit are complete.
+- remove dependencies without source and frozen-build evidence;
+- begin naming or encoding cleanup;
+- proceed to Phase 13 before Phase 12 tests, validation, state update, and checkpoint commit are complete.
 
-Suggested Phase 11 checkpoint commit:
+Suggested Phase 12 checkpoint commit:
 
 ```text
-refactor: make failures and resources explicit
+chore: resolve legacy modules and dependencies
 ```
 
 ## New-session resume procedure
@@ -88,7 +89,7 @@ At the beginning of a new session:
    git log -5 --oneline --decorate
    ```
 
-5. Confirm that the documented Checkpoint 10 commit or a later checkpoint is in the current branch history.
+5. Confirm that the documented Checkpoint 11 commit or a later checkpoint is in the current branch history.
 6. Preserve all unrelated tracked and untracked work.
 7. Run the current automated baseline before editing:
 

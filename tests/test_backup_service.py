@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import sqlite3
 import unittest
+from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from tests import support as _test_support
 from tests.support.fixtures import TemporaryProject
 
-from smartcatalog.services.backup_service import backup_catalog
+from smartcatalog.services.backup_service import BackupError, backup_catalog
 from smartcatalog.ui.controllers.workflows_controller import (
     WorkflowsControllerMixin,
 )
@@ -65,7 +68,7 @@ class BackupServiceTests(unittest.TestCase):
 
     def test_backup_manifest_marks_missing_optional_sources(self) -> None:
         database = self.project.path("catalog.db")
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection:
             connection.execute("CREATE TABLE sample(value TEXT)")
 
         manifest = backup_catalog(
@@ -80,6 +83,65 @@ class BackupServiceTests(unittest.TestCase):
         self.assertIsNone(manifest.assets_path)
         self.assertIsNone(manifest.catalog_pdfs_path)
         self.assertIsNone(manifest.settings_path)
+
+    def test_missing_database_error_includes_source_path(self) -> None:
+        missing_database = self.project.path("missing", "catalog.db")
+
+        with self.assertRaisesRegex(
+            BackupError,
+            str(missing_database).replace("\\", "\\\\"),
+        ):
+            backup_catalog(
+                database_path=missing_database,
+                assets_dir=self.project.path("assets"),
+                catalog_pdfs_dir=self.project.path("catalog_pdfs"),
+                settings_path=self.project.path("settings.json"),
+                backup_dir=self.project.path("backup"),
+            )
+
+    def test_delayed_backup_error_callback_keeps_exception_context(self) -> None:
+        database = self.project.path("catalog.db")
+        with closing(sqlite3.connect(database)) as connection:
+            connection.execute("CREATE TABLE sample(value TEXT)")
+        callbacks: list[object] = []
+
+        class DelayedRoot:
+            @staticmethod
+            def after(_delay: int, callback) -> None:
+                callbacks.append(callback)
+
+        window = SimpleNamespace(
+            root=DelayedRoot(),
+            state=SimpleNamespace(
+                db_path=database,
+                assets_dir=self.project.path("assets"),
+                data_dir=self.project.path(),
+                settings_path=self.project.path("settings.json"),
+            ),
+            _run_bg=lambda _title, work: work(),
+        )
+        error = BackupError("database is locked")
+
+        with (
+            patch(
+                "smartcatalog.ui.controllers.workflows_controller."
+                "filedialog.askdirectory",
+                return_value=str(self.project.path()),
+            ),
+            patch(
+                "smartcatalog.ui.controllers.workflows_controller.backup_catalog",
+                side_effect=error,
+            ),
+            patch(
+                "smartcatalog.ui.controllers.workflows_controller."
+                "messagebox.showerror"
+            ) as show_error,
+        ):
+            MainWindow.on_backup_data(window)
+            self.assertEqual(len(callbacks), 1)
+            callbacks[0]()
+
+        self.assertIn("database is locked", show_error.call_args.args[1])
 
     def test_main_window_uses_extracted_workflow_controller(self) -> None:
         self.assertIs(

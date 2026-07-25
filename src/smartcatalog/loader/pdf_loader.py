@@ -83,22 +83,24 @@ def _extract_large_images(
         data = info["image"]
 
         # ---- PIL processing ----
-        im = Image.open(io.BytesIO(data))
-
-        # Convert everything to RGBA first
-        if im.mode != "RGBA":
-            im = im.convert("RGBA")
-
-        # White background
-        white_bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
-        im = Image.alpha_composite(white_bg, im)
-
-        # Final image: RGB (no alpha, no black background)
-        im = im.convert("RGB")
-
-        filename = f"xref{xref}.png"
-        path = out_dir / filename
-        im.save(path, format="PNG", quality=95)
+        with Image.open(io.BytesIO(data)) as source:
+            im = source if source.mode == "RGBA" else source.convert("RGBA")
+            try:
+                with Image.new(
+                    "RGBA",
+                    im.size,
+                    (255, 255, 255, 255),
+                ) as white_bg:
+                    with Image.alpha_composite(
+                        white_bg,
+                        im,
+                    ).convert("RGB") as flattened:
+                        filename = f"xref{xref}.png"
+                        path = out_dir / filename
+                        flattened.save(path, format="PNG", quality=95)
+            finally:
+                if im is not source:
+                    im.close()
 
         paths.append(str(path))
 

@@ -202,7 +202,7 @@ class WorkflowsControllerMixin:
             except Exception as exc:
                 _safe_ui(
                     self.root,
-                    lambda: messagebox.showerror(
+                    lambda exc=exc: messagebox.showerror(
                         "Backup lỗi",
                         f"Không thể backup: {exc}",
                     ),

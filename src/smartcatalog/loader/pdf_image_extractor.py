@@ -22,10 +22,10 @@ def handle_jpeg2000_conversion(
     image_ext: str,
 ) -> tuple[bytes, str]:
     if image_ext.lower() in ("jp2", "jpx", "j2k", "j2c"):
-        image = Image.open(io.BytesIO(image_bytes))
-        output = io.BytesIO()
-        image.save(output, format="PNG")
-        return output.getvalue(), "png"
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            output = io.BytesIO()
+            image.save(output, format="PNG")
+            return output.getvalue(), "png"
     return image_bytes, image_ext
 
 
@@ -68,9 +68,19 @@ def nearest_image_for_code_on_page(
 
 def save_image_bytes_as_png(image_bytes: bytes, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    image = Image.open(io.BytesIO(image_bytes))
-    if image.mode != "RGBA":
-        image = image.convert("RGBA")
-    white_background = Image.new("RGBA", image.size, (255, 255, 255, 255))
-    image = Image.alpha_composite(white_background, image).convert("RGB")
-    image.save(out_path, format="PNG", quality=95)
+    with Image.open(io.BytesIO(image_bytes)) as source:
+        image = source if source.mode == "RGBA" else source.convert("RGBA")
+        try:
+            with Image.new(
+                "RGBA",
+                image.size,
+                (255, 255, 255, 255),
+            ) as white_background:
+                with Image.alpha_composite(
+                    white_background,
+                    image,
+                ).convert("RGB") as flattened:
+                    flattened.save(out_path, format="PNG", quality=95)
+        finally:
+            if image is not source:
+                image.close()

@@ -15,6 +15,10 @@ class BackupManifest:
     settings_path: Path | None
 
 
+class BackupError(RuntimeError):
+    """Raised when a catalog backup step cannot be completed."""
+
+
 def backup_catalog(
     *,
     database_path: str | Path,
@@ -25,44 +29,75 @@ def backup_catalog(
 ) -> BackupManifest:
     source_database = Path(database_path)
     destination = Path(backup_dir)
-    destination.mkdir(parents=True, exist_ok=True)
+    if not source_database.is_file():
+        raise BackupError(f"Backup database does not exist: {source_database}")
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise BackupError(
+            f"Could not create backup directory '{destination}': {exc}"
+        ) from exc
 
     backup_database = destination / "catalog.db"
-    source_connection = sqlite3.connect(str(source_database))
     try:
-        destination_connection = sqlite3.connect(str(backup_database))
+        source_connection = sqlite3.connect(str(source_database))
         try:
-            source_connection.backup(destination_connection)
+            destination_connection = sqlite3.connect(str(backup_database))
+            try:
+                source_connection.backup(destination_connection)
+            finally:
+                destination_connection.close()
         finally:
-            destination_connection.close()
-    finally:
-        source_connection.close()
+            source_connection.close()
+    except sqlite3.Error as exc:
+        raise BackupError(
+            f"Could not back up database '{source_database}' "
+            f"to '{backup_database}': {exc}"
+        ) from exc
 
     assets_source = Path(assets_dir)
     assets_destination: Path | None = None
     if assets_source.exists():
         assets_destination = destination / "assets"
-        shutil.copytree(
-            assets_source,
-            assets_destination,
-            dirs_exist_ok=True,
-        )
+        try:
+            shutil.copytree(
+                assets_source,
+                assets_destination,
+                dirs_exist_ok=True,
+            )
+        except OSError as exc:
+            raise BackupError(
+                f"Could not back up assets '{assets_source}' "
+                f"to '{assets_destination}': {exc}"
+            ) from exc
 
     pdfs_source = Path(catalog_pdfs_dir)
     pdfs_destination: Path | None = None
     if pdfs_source.exists():
         pdfs_destination = destination / "catalog_pdfs"
-        shutil.copytree(
-            pdfs_source,
-            pdfs_destination,
-            dirs_exist_ok=True,
-        )
+        try:
+            shutil.copytree(
+                pdfs_source,
+                pdfs_destination,
+                dirs_exist_ok=True,
+            )
+        except OSError as exc:
+            raise BackupError(
+                f"Could not back up catalog PDFs '{pdfs_source}' "
+                f"to '{pdfs_destination}': {exc}"
+            ) from exc
 
     settings_source = Path(settings_path)
     settings_destination: Path | None = None
     if settings_source.exists():
         settings_destination = destination / "settings.json"
-        shutil.copy2(settings_source, settings_destination)
+        try:
+            shutil.copy2(settings_source, settings_destination)
+        except OSError as exc:
+            raise BackupError(
+                f"Could not back up settings '{settings_source}' "
+                f"to '{settings_destination}': {exc}"
+            ) from exc
 
     return BackupManifest(
         backup_dir=destination,
