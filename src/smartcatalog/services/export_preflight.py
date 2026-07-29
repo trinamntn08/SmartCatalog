@@ -53,6 +53,43 @@ class ExportPreflight:
     issues: tuple[ExportPreflightItem, ...]
 
 
+def save_export_preflight_descriptions(
+    issue: ExportPreflightItem,
+    *,
+    db,
+    description_vi: str,
+    description_en: str,
+) -> None:
+    """Persist edited descriptions, creating an unknown workbook code."""
+    description_vi = str(description_vi or "").strip()
+    description_en = str(description_en or "").strip()
+
+    updated = db.update_excel_descriptions_by_code(
+        code=issue.code,
+        description_vi=description_vi,
+        description_en=description_en,
+    )
+    if not updated:
+        db.upsert_by_code(
+            code=issue.code,
+            page=None,
+            description_excel=description_en,
+            description_vietnames_from_excel=description_vi,
+        )
+
+    saved_item = db.get_item_by_code(issue.code)
+    if saved_item is None:
+        raise RuntimeError(f"Could not save catalog item {issue.code}.")
+
+    issue.item_id = int(saved_item.id)
+    issue.description_vi = description_vi
+    issue.description_en = description_en
+    issue.unknown_code = False
+    issue.missing_vi = not bool(description_vi)
+    issue.missing_en = not bool(description_en)
+    issue.missing_images = not bool(saved_item.images)
+
+
 def prepare_export_preflight(
     rows: tuple[WorkbookProductRow, ...],
     *,

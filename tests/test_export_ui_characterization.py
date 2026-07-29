@@ -23,6 +23,7 @@ from smartcatalog.services.catalog_export import (
 from smartcatalog.services.export_preflight import (
     ExportPreflightItem as ServiceExportPreflightItem,
     prepare_export_preflight,
+    save_export_preflight_descriptions,
 )
 from smartcatalog.services.workbook_product_reader import read_workbook_products
 from smartcatalog.ui.export_review_dialog import ExportPreflightItem
@@ -152,6 +153,7 @@ class ExportTestCase(unittest.TestCase):
             _run_bg=lambda _title, work: work(),
             _set_status=lambda message: statuses.append(message),
             _show_export_result=lambda **kwargs: results.append(kwargs),
+            refresh_items=lambda: None,
         )
 
         with (
@@ -192,6 +194,60 @@ class PreflightCharacterizationTests(unittest.TestCase):
 
 
 class ExportServiceBoundaryTests(ExportTestCase):
+    def test_preflight_save_creates_unknown_item_for_current_export(self) -> None:
+        issue = ExportPreflightItem(code="77-777-77", unknown_code=True)
+
+        save_export_preflight_descriptions(
+            issue,
+            db=self.db,
+            description_vi="Mô tả mới",
+            description_en="New description",
+        )
+
+        saved = self.db.get_item_by_code("77-777-77")
+        self.assertIsNotNone(saved)
+        self.assertEqual(saved.description_vietnames_from_excel, "Mô tả mới")
+        self.assertEqual(saved.description_excel, "New description")
+        self.assertFalse(issue.unknown_code)
+        self.assertEqual(issue.item_id, saved.id)
+        self.assertTrue(issue.missing_images)
+
+        path = self.create_input_workbook([("77-777-77", 1)])
+        rows = read_workbook_products(path)
+        result = export_catalog(
+            path,
+            rows,
+            db=self.db,
+            project_dir=self.project.path(),
+            options=CatalogExportOptions(
+                include_description_vi=True,
+                include_description_en=True,
+                preserve_image_order=False,
+            ),
+        )
+        self.assertEqual(result.matched, 1)
+        self.assertEqual(result.missing_codes, ())
+
+    def test_preflight_save_updates_item_that_now_exists(self) -> None:
+        item_id = self.create_item(
+            code="77-777-77",
+            description_vi="Old VI",
+            description_en="Old EN",
+        )
+        issue = ExportPreflightItem(code="77-777-77", unknown_code=True)
+
+        save_export_preflight_descriptions(
+            issue,
+            db=self.db,
+            description_vi="Updated VI",
+            description_en="Updated EN",
+        )
+
+        saved = self.db.get_item_by_code("77-777-77")
+        self.assertEqual(saved.id, item_id)
+        self.assertEqual(saved.description_vietnames_from_excel, "Updated VI")
+        self.assertEqual(saved.description_excel, "Updated EN")
+
     def test_reader_preflight_and_writer_are_callable_without_tkinter(self) -> None:
         self.create_item(
             code="12-345-67",

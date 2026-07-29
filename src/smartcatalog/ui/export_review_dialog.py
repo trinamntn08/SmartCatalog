@@ -5,7 +5,10 @@ from typing import Optional
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from smartcatalog.services.export_preflight import ExportPreflightItem
+from smartcatalog.services.export_preflight import (
+    ExportPreflightItem,
+    save_export_preflight_descriptions,
+)
 
 
 class ExportReviewDialog:
@@ -244,10 +247,9 @@ class ExportReviewDialog:
         self.status_var.set(issue.status_text())
         self._set_text(self.vi_text, issue.description_vi)
         self._set_text(self.en_text, issue.description_en)
-        editable = "disabled" if issue.unknown_code else "normal"
-        self.vi_text.configure(state=editable)
-        self.en_text.configure(state=editable)
-        self.save_button.configure(state=editable)
+        self.vi_text.configure(state="normal")
+        self.en_text.configure(state="normal")
+        self.save_button.configure(state="normal")
         self._dirty = False
 
     @staticmethod
@@ -264,13 +266,14 @@ class ExportReviewDialog:
 
     def _save_current(self, *, show_errors: bool = True) -> bool:
         issue = self._selected
-        if issue is None or issue.unknown_code or not self._dirty:
+        if issue is None or not self._dirty:
             return True
         description_vi = self.vi_text.get("1.0", "end-1c").strip()
         description_en = self.en_text.get("1.0", "end-1c").strip()
         try:
-            self.db.update_excel_descriptions_by_code(
-                code=issue.code,
+            save_export_preflight_descriptions(
+                issue,
+                db=self.db,
                 description_vi=description_vi,
                 description_en=description_en,
             )
@@ -279,10 +282,6 @@ class ExportReviewDialog:
                 messagebox.showerror("Không thể lưu", str(exc), parent=self.window)
             return False
 
-        issue.description_vi = description_vi
-        issue.description_en = description_en
-        issue.missing_vi = not bool(description_vi)
-        issue.missing_en = not bool(description_en)
         self.status_var.set(issue.status_text())
         self._dirty = False
         return True

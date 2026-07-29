@@ -4,6 +4,7 @@ import shutil
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,59 @@ class BackupManifest:
 
 class BackupError(RuntimeError):
     """Raised when a catalog backup step cannot be completed."""
+
+
+def _portable_path(value: object, source_data_dir: Path) -> str:
+    text = str(value or "").strip()
+    if not text or text.lower().startswith("excel:"):
+        return text
+    path = Path(text)
+    if not path.is_absolute():
+        return text
+    try:
+        return str(path.resolve().relative_to(source_data_dir))
+    except (OSError, ValueError):
+        return text
+
+
+def _make_database_paths_portable(
+    connection: sqlite3.Connection,
+    source_data_dir: Path,
+) -> None:
+    tables = {
+        str(row[0])
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+    }
+    path_columns: Iterable[tuple[str, str]] = (
+        ("items", "pdf_path"),
+        ("assets", "pdf_path"),
+        ("assets", "asset_path"),
+    )
+    for table, column in path_columns:
+        if table not in tables:
+            continue
+        columns = {
+            str(row[1])
+            for row in connection.execute(f"PRAGMA table_info({table})")
+        }
+        if column not in columns:
+            continue
+        rows = connection.execute(
+            f"SELECT rowid, {column} FROM {table}"
+        ).fetchall()
+        updates = [
+            (_portable_path(value, source_data_dir), rowid)
+            for rowid, value in rows
+            if _portable_path(value, source_data_dir) != str(value or "").strip()
+        ]
+        if updates:
+            connection.executemany(
+                f"UPDATE {table} SET {column}=? WHERE rowid=?",
+                updates,
+            )
+    connection.commit()
 
 
 def backup_catalog(
@@ -37,12 +91,17 @@ def backup_catalog(
         ) from exc
 
     backup_database = destination / "catalog.db"
+    source_data_dir = Path(assets_dir).resolve().parent
     try:
         source_connection = sqlite3.connect(str(source_database))
         try:
             destination_connection = sqlite3.connect(str(backup_database))
             try:
                 source_connection.backup(destination_connection)
+                _make_database_paths_portable(
+                    destination_connection,
+                    source_data_dir,
+                )
             finally:
                 destination_connection.close()
         finally:

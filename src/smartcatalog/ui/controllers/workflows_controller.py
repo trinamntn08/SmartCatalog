@@ -27,6 +27,14 @@ def _safe_ui(root: tk.Misc, fn) -> None:
     dispatch_to_tk(root, fn)
 
 
+def _database_data_dir(database_path: Path) -> Path:
+    """Return the portable data root containing a selected catalog database."""
+    parent = database_path.parent
+    if parent.name.casefold() == "sql":
+        return parent.parent
+    return parent
+
+
 class WorkflowsControllerMixin:
     def on_select_database(self) -> None:
         """Switch to an existing SQLite catalog for this application session."""
@@ -65,7 +73,8 @@ class WorkflowsControllerMixin:
 
         try:
             selected_path.parent.mkdir(parents=True, exist_ok=True)
-            selected_db = CatalogDB(selected_path, data_dir=self.state.data_dir)
+            selected_data_dir = _database_data_dir(selected_path)
+            selected_db = CatalogDB(selected_path, data_dir=selected_data_dir)
         except Exception as exc:
             messagebox.showerror(
                 "Không thể mở CSDL",
@@ -73,6 +82,8 @@ class WorkflowsControllerMixin:
             )
             return
 
+        self.state.data_dir = selected_data_dir
+        self.state.assets_dir = selected_data_dir / "assets"
         self.state.db_path = selected_path
         self.state.db = selected_db
         self.state.items_cache = []
@@ -411,6 +422,11 @@ class WorkflowsControllerMixin:
                             issues,
                         ).show()
                     finally:
+                        # Description edits (including newly created workbook
+                        # codes) are already committed by the dialog. Reload
+                        # the main catalog cache/tree before returning to the
+                        # export worker so they are visible without a restart.
+                        self.refresh_items()
                         review_done.set()
 
                 _safe_ui(self.root, show_preflight_review)

@@ -13,6 +13,7 @@ from tests.support.fixtures import TemporaryProject
 from smartcatalog.services.backup_service import BackupError, backup_catalog
 from smartcatalog.ui.controllers.workflows_controller import (
     WorkflowsControllerMixin,
+    _database_data_dir,
 )
 from smartcatalog.ui.main_window import MainWindow
 
@@ -58,6 +59,16 @@ class BackupServiceTests(unittest.TestCase):
             b"pdf",
         )
 
+    def test_selected_database_uses_its_portable_folder_as_data_root(self) -> None:
+        backup_database = self.project.path("moved", "catalog.db")
+        nested_database = self.project.path("config", "database", "sql", "catalog.db")
+
+        self.assertEqual(_database_data_dir(backup_database), backup_database.parent)
+        self.assertEqual(
+            _database_data_dir(nested_database),
+            nested_database.parent.parent,
+        )
+
     def test_backup_manifest_marks_missing_optional_sources(self) -> None:
         database = self.project.path("catalog.db")
         with closing(sqlite3.connect(database)) as connection:
@@ -73,6 +84,53 @@ class BackupServiceTests(unittest.TestCase):
         self.assertTrue(manifest.database_path.is_file())
         self.assertIsNone(manifest.assets_path)
         self.assertIsNone(manifest.catalog_pdfs_path)
+
+    def test_backup_converts_paths_under_data_directory_to_relative(self) -> None:
+        runtime = self.project.path("runtime")
+        database = runtime / "sql" / "catalog.db"
+        database.parent.mkdir(parents=True)
+        assets = runtime / "assets"
+        assets.mkdir()
+        image = assets / "image.png"
+        image.write_bytes(b"asset")
+        pdfs = runtime / "catalog_pdfs"
+        pdfs.mkdir()
+        pdf = pdfs / "catalog.pdf"
+        pdf.write_bytes(b"pdf")
+        with closing(sqlite3.connect(database)) as connection:
+            connection.execute(
+                "CREATE TABLE items(code TEXT, pdf_path TEXT)"
+            )
+            connection.execute(
+                "CREATE TABLE assets(pdf_path TEXT, asset_path TEXT)"
+            )
+            connection.execute(
+                "INSERT INTO items VALUES(?, ?)",
+                ("ABC", str(pdf.resolve())),
+            )
+            connection.execute(
+                "INSERT INTO assets VALUES(?, ?)",
+                (str(pdf.resolve()), str(image.resolve())),
+            )
+            connection.commit()
+
+        manifest = backup_catalog(
+            database_path=database,
+            assets_dir=assets,
+            catalog_pdfs_dir=pdfs,
+            backup_dir=self.project.path("backup"),
+        )
+
+        with closing(sqlite3.connect(manifest.database_path)) as connection:
+            item_pdf = connection.execute(
+                "SELECT pdf_path FROM items"
+            ).fetchone()[0]
+            asset_pdf, asset_path = connection.execute(
+                "SELECT pdf_path, asset_path FROM assets"
+            ).fetchone()
+        self.assertEqual(item_pdf, str(Path("catalog_pdfs") / "catalog.pdf"))
+        self.assertEqual(asset_pdf, str(Path("catalog_pdfs") / "catalog.pdf"))
+        self.assertEqual(asset_path, str(Path("assets") / "image.png"))
 
     def test_missing_database_error_includes_source_path(self) -> None:
         missing_database = self.project.path("missing", "catalog.db")
