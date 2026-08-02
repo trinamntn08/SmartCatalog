@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$pythonExe = Join-Path $projectRoot "venv\Scripts\python.exe"
+$pythonExe = Join-Path $projectRoot ".venv-build\Scripts\python.exe"
 $specPath = Join-Path $projectRoot "SmartCatalog.spec"
 $buildRoot = Join-Path $projectRoot "build"
 $distributionRoot = Join-Path $projectRoot "dist"

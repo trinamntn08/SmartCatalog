@@ -5,18 +5,39 @@
 ## Prerequisites
 
 - Windows
-- Python
+- Python 3.10.x (`.python-version` records the validated patch version)
 - PowerShell
-- Dependencies listed in `requirements.txt`
+- Network access for first-time dependency installation
 
 ## Setup and run
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python run.py
+.\tools\setup.ps1
+.\.venv-agent\Scripts\python.exe run.py
 ```
+
+The default Agent mode creates or reuses `.venv-agent`, installs the complete
+`requirements-dev.txt` lock, and runs validation. Runtime and Build modes use
+separate `.venv-runtime` and `.venv-build` environments so developer packages
+cannot leak into application or release environments. Use `-Clean` to recreate
+the selected environment from its lock.
+
+For repeatable offline setup, populate the ignored wheelhouse while online,
+then use it without package-index access:
+
+```powershell
+.\tools\setup.ps1 -Mode Agent -RefreshWheelhouse
+.\tools\setup.ps1 -Mode Agent -Clean -Offline
+```
+
+Direct dependency intent lives in `requirements.in`, `requirements-dev.in`,
+and `requirements-build.in`. Their matching `.txt` files are generated locks;
+update them only through `.\tools\lock.ps1` under Python 3.10.
+
+Python 3.10 remains the locally and frozen-build validated baseline, but it is
+near end of life. Windows CI also runs the agent suite on Python 3.13. Promote
+3.13 to `.python-version` after a successful disposable frozen build and UI
+smoke test on that interpreter; regenerate all locks at the same checkpoint.
 
 Normal startup is:
 
@@ -48,14 +69,17 @@ src/smartcatalog/
 Run from the repository root:
 
 ```powershell
-python -m compileall -q run.py src tests
-.\venv\Scripts\python.exe -c "import sys; sys.path.insert(0, 'src'); import smartcatalog; import smartcatalog.main"
-.\venv\Scripts\python.exe -m unittest discover -s tests -v
-git diff --check
-git status --short
+.\tools\check.ps1
 ```
 
-The current baseline is 89 passing tests.
+The script prefers `.venv-agent\Scripts\python.exe`, with legacy-environment
+fallbacks, and otherwise uses `python` from `PATH`. It verifies Python and
+installed dependency consistency, compiles and imports the application, runs
+conservative Ruff checks and the complete discovered test suite, checks staged
+and unstaged patch whitespace, validates UTF-8 repository text and local
+Markdown links, and reports worktree status. Test discovery output is the
+source of truth for the current test count. See [TESTING.md](TESTING.md) for
+test categories and known behaviors.
 
 ## Safe development rules
 
@@ -75,6 +99,7 @@ The complete mandatory rules are in [AGENTS.md](../AGENTS.md).
 ## Build and release
 
 ```powershell
+.\tools\setup.ps1 -Mode Build
 .\build_exe.ps1
 ```
 

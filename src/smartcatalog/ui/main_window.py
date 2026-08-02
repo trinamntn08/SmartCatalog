@@ -760,7 +760,7 @@ class MainWindow(
                 err_text = f"{exc}\n\n{tb}"
 
                 _safe_ui(self.root, lambda: self._apply_busy(False))
-                _safe_ui(self.root, lambda: self._set_status(f"❌ Lỗi: {exc}"))
+                _safe_ui(self.root, lambda error=exc: self._set_status(f"❌ Lỗi: {error}"))
                 _safe_ui(self.root, lambda msg=err_text: messagebox.showerror("Lỗi", msg))
 
         threading.Thread(target=runner, daemon=True).start()

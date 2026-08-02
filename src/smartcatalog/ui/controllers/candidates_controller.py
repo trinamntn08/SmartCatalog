@@ -145,7 +145,7 @@ class CandidatesControllerMixin:
                 self._page_images_cache[key] = images  # cache even if empty
                 self._safe_ui(lambda: self._apply_page_images_result(token, key, images))
             except Exception as e:
-                self._safe_ui(lambda: self._apply_page_images_error(token, key, e))
+                self._safe_ui(lambda error=e: self._apply_page_images_error(token, key, error))
 
         threading.Thread(target=worker, daemon=True).start()
 

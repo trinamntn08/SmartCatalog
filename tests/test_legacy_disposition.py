@@ -11,6 +11,7 @@ class LegacyDispositionTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         removed = (
             "src/smartcatalog/db/update_db_from_pdf.py",
+            "src/smartcatalog/loader/pdf_loader.py",
             "src/smartcatalog/extracter/extract_key_info_from_pdf.py",
             "src/smartcatalog/matcher/pdf_matcher.py",
             "src/smartcatalog/ui/controllers/pdf_viewer_controller.py",
@@ -22,16 +23,53 @@ class LegacyDispositionTests(unittest.TestCase):
             [],
         )
 
-    def test_requirements_contain_only_active_runtime_dependencies(self) -> None:
+    def test_runtime_dependency_input_contains_only_active_dependencies(self) -> None:
         root = Path(__file__).resolve().parents[1]
         requirements = {
             line.strip().lower()
-            for line in (root / "requirements.txt").read_text(
+            for line in (root / "requirements.in").read_text(
                 encoding="utf-8"
             ).splitlines()
             if line.strip() and not line.lstrip().startswith("#")
         }
         self.assertEqual(
             requirements,
-            {"pandas", "pymupdf", "pillow", "openpyxl>=3.1.0"},
+            {
+                "pandas==2.3.3",
+                "pymupdf==1.26.7",
+                "pillow==12.1.0",
+                "openpyxl==3.1.5",
+            },
+        )
+
+    def test_build_dependency_input_extends_runtime_with_pyinstaller(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        requirements = {
+            line.strip().lower()
+            for line in (root / "requirements-build.in").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        self.assertEqual(
+            requirements,
+            {"-r requirements.in", "pyinstaller==6.18.0"},
+        )
+
+    def test_agent_dependency_input_extends_runtime_with_local_tools(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        requirements = {
+            line.strip().lower()
+            for line in (root / "requirements-dev.in").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        self.assertEqual(
+            requirements,
+            {
+                "-r requirements.in",
+                "pip-tools==7.6.0",
+                "ruff==0.15.22",
+            },
         )

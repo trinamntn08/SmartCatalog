@@ -10,13 +10,13 @@ from tkinter import filedialog, messagebox, ttk
 
 from smartcatalog.db.catalog_db import CatalogDB
 from smartcatalog.state import database_data_dir
-from smartcatalog.loader.pdf_loader import build_or_update_db_from_pdf
 from smartcatalog.services.backup_service import backup_catalog
 from smartcatalog.services.catalog_export import CatalogExportOptions, export_catalog
 from smartcatalog.services.excel_catalog_import import import_excel_catalog
 from smartcatalog.services.export_preflight import prepare_export_preflight
 from smartcatalog.services.workbook_product_reader import read_workbook_products
 from smartcatalog.ui.export_review_dialog import ExportReviewDialog
+from smartcatalog.ui.controllers.pdf_import_adapter import build_or_update_db_from_pdf
 from smartcatalog.utils.description_dictionary import import_dictionary_into_db
 from smartcatalog.utils.post_processing import (
     DEFAULT_SHEET_NAME as POST_PROCESSING_SHEET_NAME,

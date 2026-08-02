@@ -1,0 +1,4 @@
+# Runtime plus local agent/developer tooling.
+-r requirements.in
+pip-tools==7.6.0
+ruff==0.15.22

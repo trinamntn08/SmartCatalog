@@ -14,7 +14,8 @@ were excluded.
 
 | Removed path | Evidence and active replacement |
 |---|---|
-| `src/smartcatalog/db/update_db_from_pdf.py` | No tracked caller. It used an incompatible image-BLOB/schema workflow. Active PDF import is `services/pdf_import.py` through `loader/pdf_loader.py` and the current `CatalogDB` asset/link schema. |
+| `src/smartcatalog/db/update_db_from_pdf.py` | No tracked caller. It used an incompatible image-BLOB/schema workflow. Active PDF import is `services/pdf_import.py` through `ui/controllers/pdf_import_adapter.py` and the current `CatalogDB` asset/link schema. |
+| `src/smartcatalog/loader/pdf_loader.py` | Its remaining responsibility was a Tk status/preview adapter and introduced a reverse loader-to-service dependency. The adapter moved to `ui/controllers/pdf_import_adapter.py`; parsing remains in loaders and orchestration remains in `services/pdf_import.py`. |
 | `src/smartcatalog/extracter/extract_key_info_from_pdf.py` | No tracked caller. Active field extraction is `loader/extract_item.py`; PDF orchestration is `services/pdf_import.py`. The now-empty `extracter` package marker was also removed. |
 | `src/smartcatalog/matcher/pdf_matcher.py` | No tracked caller. Active matching policies live in the Excel services and PDF import pipeline. The now-empty `matcher` package marker was also removed. |
 | `src/smartcatalog/ui/controllers/pdf_viewer_controller.py` | No tracked caller and not mixed into `MainWindow`. Active manual PDF cropping is `ui/pdf_crop_window.py`; candidate assignment is `ui/controllers/candidates_controller.py`. |

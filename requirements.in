@@ -1,0 +1,6 @@
+# Direct runtime dependencies. Pin changes require the full validation suite
+# and a frozen-build check.
+pandas==2.3.3
+PyMuPDF==1.26.7
+Pillow==12.1.0
+openpyxl==3.1.5

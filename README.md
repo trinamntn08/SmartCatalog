@@ -19,10 +19,8 @@ working catalog in SQLite, and exports formatted Excel workbooks.
 From PowerShell in the repository root:
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python run.py
+.\tools\setup.ps1 -Mode Runtime
+.\.venv-runtime\Scripts\python.exe run.py
 ```
 
 If PowerShell blocks activation, change policy only for the current process:
@@ -34,6 +32,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ## Build the Windows release
 
 ```powershell
+.\tools\setup.ps1 -Mode Build
 .\build_exe.ps1
 ```
 

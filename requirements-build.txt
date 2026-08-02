@@ -4,23 +4,41 @@
 #
 #    .\tools\lock.ps1
 #
+altgraph==0.17.5
+    # via pyinstaller
 et-xmlfile==2.0.0
     # via openpyxl
 numpy==2.2.6
     # via pandas
 openpyxl==3.1.5
     # via -r requirements.in
+packaging==26.2
+    # via
+    #   pyinstaller
+    #   pyinstaller-hooks-contrib
 pandas==2.3.3
     # via -r requirements.in
+pefile==2024.8.26
+    # via pyinstaller
 pillow==12.1.0
     # via -r requirements.in
+pyinstaller==6.18.0
+    # via -r requirements-build.in
+pyinstaller-hooks-contrib==2026.6
+    # via pyinstaller
 pymupdf==1.26.7
     # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via pandas
 pytz==2026.3.post1
     # via pandas
+pywin32-ctypes==0.2.3
+    # via pyinstaller
 six==1.17.0
     # via python-dateutil
 tzdata==2026.3
     # via pandas
+
+# The following packages are considered to be unsafe in a requirements file:
+setuptools==83.0.0
+    # via pyinstaller

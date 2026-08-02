@@ -16,7 +16,7 @@ from tests.support.fixtures import TemporaryProject
 
 from smartcatalog.db.catalog_db import CatalogDB
 from smartcatalog.loader.extract_item import CatalogItem, extract_items_from_page
-from smartcatalog.loader.pdf_loader import build_or_update_db_from_pdf
+from smartcatalog.ui.controllers.pdf_import_adapter import build_or_update_db_from_pdf
 from smartcatalog.loader.pdf_image_extractor import (
     distance_between_rects,
     handle_jpeg2000_conversion,
@@ -342,7 +342,7 @@ class PDFImportCharacterizationTests(PDFTestCase):
         self.assertEqual(result.images_added, 0)
         self.assertTrue(statuses[-1].startswith("✅ Xong."))
 
-    def test_import_uses_one_based_page_but_currently_rolls_back_image_link(self) -> None:
+    def test_known_pdf_import_image_link_rollback_kb001(self) -> None:
         path = create_extraction_pdf(
             self.project.path("import.pdf"),
             blank_first_page=True,
@@ -372,7 +372,7 @@ class PDFImportCharacterizationTests(PDFTestCase):
                 0,
             )
 
-        # Current behavior writes the PNG before the uncommitted asset/link rows
+        # Known behavior KB-001 writes the PNG before the uncommitted asset/link rows
         # are rolled back when the caller-owned connection closes.
         written = list(
             (self.data_dir / "assets" / "pdf_import" / "p0002").glob(
@@ -543,7 +543,7 @@ class PDFImportCharacterizationTests(PDFTestCase):
 
         with (
             patch(
-                "smartcatalog.loader.pdf_loader.extract_items_from_page",
+                "smartcatalog.ui.controllers.pdf_import_adapter.extract_items_from_page",
                 side_effect=RuntimeError("characterized failure"),
             ),
             self.assertRaisesRegex(RuntimeError, "characterized failure"),

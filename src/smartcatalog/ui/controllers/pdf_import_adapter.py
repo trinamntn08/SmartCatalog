@@ -1,15 +1,15 @@
-# smartcatalog/loader/pdf_loader.py
 from __future__ import annotations
 
-from typing import Optional, Callable, Any
+from collections.abc import Callable
+from typing import Any, Optional
 
-from smartcatalog.state import AppState
 from smartcatalog.loader.extract_item import extract_items_from_page
 from smartcatalog.services.pdf_import import import_pdf_catalog
+from smartcatalog.state import AppState
 
 
 def _ui_call(widget_or_root: Any, fn: Callable[[], None]) -> None:
-    """Thread-safe Tk update."""
+    """Schedule a callback through Tk when a widget/root is available."""
     if widget_or_root is None:
         return
     after = getattr(widget_or_root, "after", None)
@@ -19,8 +19,8 @@ def _ui_call(widget_or_root: Any, fn: Callable[[], None]) -> None:
         fn()
 
 
-def _set_preview_text(source_preview, text: str) -> None:
-    def _do():
+def _set_preview_text(source_preview: Any, text: str) -> None:
+    def update_preview() -> None:
         try:
             source_preview.configure(state="normal")
             source_preview.delete("1.0", "end")
@@ -29,28 +29,29 @@ def _set_preview_text(source_preview, text: str) -> None:
         except Exception:
             pass
 
-    _ui_call(source_preview, _do)
+    _ui_call(source_preview, update_preview)
 
 
-def _set_status(status_var, text: str) -> None:
-    def _do():
+def _set_status(status_var: Any, text: str) -> None:
+    def update_status() -> None:
         try:
             status_var.set(text)
         except Exception:
             pass
 
-    _ui_call(status_var, _do)
+    _ui_call(status_var, update_status)
 
 
 def build_or_update_db_from_pdf(
     state: AppState,
-    source_preview=None,
-    status_message=None,
+    source_preview: Any = None,
+    status_message: Any = None,
     *,
     page_start: int = 1,
     page_end: Optional[int] = None,
     on_existing_item_decision: Optional[Callable[[str], bool]] = None,
 ) -> None:
+    """Adapt the headless PDF import service to the controller's Tk callbacks."""
     import_pdf_catalog(
         state,
         page_start=page_start,

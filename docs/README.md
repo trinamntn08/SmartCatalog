@@ -15,6 +15,8 @@ Use this page to find the right document quickly.
   safe change workflow.
 - [Architecture](ARCHITECTURE.md) — runtime layers, dependencies, persistence,
   and major data flows.
+- [Testing guide](TESTING.md) — test categories, local commands, and explicitly
+  tracked known behaviors.
 - [Contributor rules](../AGENTS.md) — mandatory repository and data-safety
   constraints.
 

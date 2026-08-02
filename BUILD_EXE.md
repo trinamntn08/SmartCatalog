@@ -9,11 +9,16 @@ not supported.
 
 ## Build
 
-Build from PowerShell at the repository root:
+Install the separately pinned build dependencies, then build from PowerShell
+at the repository root:
 
 ```powershell
+.\tools\setup.ps1 -Mode Build
 .\build_exe.ps1
 ```
+
+Build dependencies are isolated in `.venv-build`. Use
+`.\tools\setup.ps1 -Mode Build -Clean` for a clean release environment.
 
 The script resolves paths from its own location, so invoking it by absolute
 path from another working directory produces `build/` and `dist/` beside the

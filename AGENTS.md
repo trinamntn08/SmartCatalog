@@ -24,37 +24,20 @@ Normal startup is:
 
 `run.py` -> `smartcatalog.main.start_ui()` -> `AppState` -> `CatalogDB` -> `create_main_window()`
 
-The active modules are:
+The active layer map is:
 
-- `run.py`: resolves the source or frozen application root, adds the root and `src/` to `sys.path`, and starts the UI.
-- `src/smartcatalog/main.py`: creates the Tk root, icon and splash screen, application state, database wrapper, and main window.
-- `src/smartcatalog/domain/models.py`: defines the active persisted/UI `CatalogItem` model. `state.py` re-exports it for compatibility.
-- `src/smartcatalog/state.py`: defines `AppState`, creates the runtime data
-  layout, loads the authoritative database path and selected catalog PDF from
-  `settings.json`, and upgrades legacy settings with a portable default.
-- `src/smartcatalog/db/catalog_db.py`: compatibility facade for connection lifecycle, public persistence calls, and existing commit policy.
-- `src/smartcatalog/db/schema.py` and `path_mapper.py`: live SQLite schema/compatibility upgrades and portable database-path policy.
-- `src/smartcatalog/db/item_repository.py` and `asset_repository.py`: item mapping/CRUD and asset/link SQL, ordering, and mutation policy behind `CatalogDB`.
-- `src/smartcatalog/loader/extract_item.py`: performs coordinate- and regex-sensitive extraction of item fields from PDF pages.
-- `src/smartcatalog/loader/pdf_loader.py`: compatibility entry point that adapts Tk status/preview callbacks to the PDF-import service.
-- `src/smartcatalog/loader/pdf_image_extractor.py`: canonical PDF image-distance, extraction, conversion, and PNG-writing helpers.
-- `src/smartcatalog/loader/excel_loader.py`: tolerantly detects header rows, code columns, and Vietnamese/English description columns across workbooks.
-- `src/smartcatalog/services/pdf_import.py`, `excel_catalog_import.py`, `backup_service.py`, and `catalog_export.py`: UI-independent top-level workflows with typed results and explicit callbacks.
-- `src/smartcatalog/services/export_preflight.py` and `workbook_product_reader.py`: UI-independent export review preparation and tolerant workbook input reading.
-- `src/smartcatalog/ui/main_window.py`: composes the Tkinter UI and delegates top-level workflows to controllers.
-- `src/smartcatalog/ui/controllers/workflows_controller.py`: owns Tk dialogs, background execution, UI dispatch, and the canonical PDF/Excel/backup/export callbacks.
-- `src/smartcatalog/ui/controllers/items_controller.py`: item list filtering, sorting, selection, and search behavior.
-- `src/smartcatalog/ui/controllers/item_form_controller.py`: dirty-state handling, item add/edit/delete/save, validation state, and synchronization of UI image order to asset links.
-- `src/smartcatalog/ui/controllers/images_controller.py`: manual image add/remove/rotate, thumbnails, previews, drag reorder, and image provenance display.
-- `src/smartcatalog/ui/controllers/candidates_controller.py`: asynchronously extracts candidate images from the current PDF page and allows manual assignment.
-- `src/smartcatalog/ui/pdf_crop_window.py`: the currently wired manual PDF crop workflow.
-- `src/smartcatalog/ui/export_review_dialog.py`: pre-export review and editing for missing VI/EN descriptions, images, and unmatched codes.
-- `src/smartcatalog/utils/description_dictionary.py`: seeds only empty database description fields from `config/database/dictionary.csv`.
-- `src/smartcatalog/utils/post_processing.py`: builds the formatted post-processing worksheet, inserts product images, then edits the XLSX ZIP/XML package to install the header image.
-- `src/smartcatalog/utils/code_normalization.py`, `filename_utils.py`, `hashing.py`, `text_normalization.py`, `ui_dispatch.py`, and `workbook_images.py`: shared, side-effect-free policies extracted from active UI/loader code; compatibility wrappers remain at older entry points where needed.
-- `src/smartcatalog/ui/widgets/scrollable_frame.py`: reusable Tkinter scrollable frame.
+- `domain/`: persisted and UI-facing models.
+- `db/`: schema, path mapping, repositories, and the `CatalogDB` facade.
+- `loader/`: layout-sensitive PDF and tolerant Excel parsing.
+- `services/`: UI-independent workflow orchestration and typed results.
+- `ui/`: Tkinter composition, controllers, dialogs, and widgets.
+- `utils/`: shared normalization, hashing, image, workbook, and package helpers.
 
-`MainWindow` currently mixes in `ItemsControllerMixin`, `CandidatesControllerMixin`, `ImagesControllerMixin`, `ItemFormControllerMixin`, and `WorkflowsControllerMixin`. Keep reusable panel behavior in those controllers, UI-independent workflows in services, persistence in `CatalogDB`, parsing in loaders, and leave `main_window.py` primarily for layout and widget composition.
+Keep UI behavior in controllers, UI-independent workflows in services,
+persistence behind `CatalogDB` and repositories, and parsing in loaders. See
+`docs/ARCHITECTURE.md` for the current flow. More specific rules live in the
+nearest scoped `AGENTS.md` under `db/`, `loader/`, `services/`, `ui/`, `utils/`,
+and `tests/`.
 
 ## Removed legacy code
 
@@ -65,7 +48,8 @@ active replacements are recorded in `docs/LEGACY_MODULE_DISPOSITION.md`.
 
 Do not recreate or revive those implementations merely because a similar
 helper existed there. The active PDF import is `services/pdf_import.py` through
-`loader/pdf_loader.py`, the active crop UI is `ui/pdf_crop_window.py`, and the
+`ui/controllers/pdf_import_adapter.py`, the active crop UI is
+`ui/pdf_crop_window.py`, and the
 supported export is Excel post-processing through
 `services/catalog_export.py`.
 
@@ -118,11 +102,10 @@ For persistence work, use a temporary project directory or copies of representat
 
 ## Main user workflows
 
-- PDF import copies the chosen PDF into `catalog_pdfs/`, persists the relative selection, scans pages in a background thread, prompts before updating existing unvalidated records, and assigns nearest extracted images only when an item has no images.
-- Excel database update tolerantly detects codes/descriptions on all sheets, updates matching descriptions, extracts embedded images by their nearest code row, deduplicates image content, and stores Excel images under `assets/excel_import/`.
-- Manual image workflows can add files, assign PDF-page candidates, crop a PDF region, rotate images, remove links, and reorder linked images.
-- Backup uses SQLite's backup API and copies assets, catalog PDFs, and settings to a timestamped user-selected directory.
-- Excel export reads product codes/quantities from a selected workbook, performs exact then unique normalized matching, optionally runs the preflight dialog, replaces the output worksheet with the formatted post-processing sheet, embeds images, and injects branding into the XLSX package.
+The supported PDF import, Excel update/export, manual image, and backup flows
+are summarized in `docs/ARCHITECTURE.md` and described for users in
+`docs/USER_GUIDE.md`. Preserve their established matching, overwrite, image,
+and portability behavior unless a task explicitly changes it.
 
 Long PDF, Excel, image, and backup work runs off the UI thread. Tkinter widgets and variables must be accessed only on the UI thread through `root.after(...)`, `_safe_ui`, `_ui_call`, or the established equivalent. A worker may wait for a UI-thread decision only through the existing event/dialog pattern; do not call dialogs directly from a worker.
 
@@ -131,11 +114,18 @@ Long PDF, Excel, image, and backup work runs off the UI thread. Tkinter widgets 
 Use PowerShell from the repository root:
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python run.py
+.\tools\setup.ps1
+.\.venv-agent\Scripts\python.exe run.py
 ```
+
+Python 3.10 is the currently supported and locally validated interpreter line;
+`.python-version` records the exact local baseline. CI also exercises Python
+3.13 as the migration target. The setup command creates or reuses a separate
+`.venv-agent`, `.venv-runtime`, or `.venv-build` environment for the selected
+mode, installs its lock, and runs validation in Agent mode.
+Dependency intent lives in `requirements*.in`; generated `requirements*.txt`
+files lock complete Runtime, Agent, and Build environments. Regenerate all
+locks through `.\tools\lock.ps1` after deliberate input changes.
 
 If script execution is blocked, change policy only for the current process:
 
@@ -143,31 +133,35 @@ If script execution is blocked, change policy only for the current process:
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ```
 
-The repository has a `unittest` regression suite. There is no checked-in
-formatter, linter, or type-checker configuration. Minimum non-GUI validation
-from the repository virtual environment is:
+The repository has a `unittest` regression suite and conservative Ruff
+correctness checks. Formatting and static type checking are not enforced.
+Minimum non-GUI validation is available through one canonical command:
 
 ```powershell
-.\venv\Scripts\python.exe -m compileall -q run.py src tests
-.\venv\Scripts\python.exe -c "import sys; sys.path.insert(0, 'src'); import smartcatalog; import smartcatalog.main"
-.\venv\Scripts\python.exe -m unittest discover -s tests -v
-git diff --check
+.\tools\check.ps1
 ```
 
-The current baseline is 89 passing tests. Run focused read-only or
-temporary-directory checks for changed parsing, persistence, backup, or export
-code. UI and workflow changes also require a manual smoke test when feasible;
-report any test that was not performed.
+The script prefers the repository `venv`, then `.venv`, and otherwise uses
+`python` from `PATH`. It verifies Python and imports, runs high-signal Ruff
+checks and the complete discovered test suite, compiles the source, checks
+patch whitespace, and reports worktree status. The discovered test output is
+authoritative; do not duplicate an exact test count in current documentation.
+Run focused disposable-data checks for changed parsing, persistence, backup,
+or export code. UI changes also require a manual smoke test when feasible;
+report any test that was not performed. Follow `docs/TESTING.md` for regression,
+characterization, and known-behavior policy.
 
 ## Windows executable build
 
 The supported build is the checked-in PyInstaller configuration:
 
 ```powershell
+.\tools\setup.ps1 -Mode Build
 .\build_exe.ps1
 ```
 
-- The script expects `venv\Scripts\python.exe` and PyInstaller installed in that environment; PyInstaller is not listed in `requirements.txt`.
+- The setup command installs the complete pinned build environment, including
+  PyInstaller, into `.venv-build`.
 - The script uses `build/` for PyInstaller intermediates and deliberately
   removes/recreates `dist/` as the release output on every build. Never keep
   user or irreplaceable files in `dist/`.
@@ -186,7 +180,9 @@ Do not edit generated `build/` or `dist/` contents. Change the spec or build scr
 ## Engineering guidance
 
 - Prefer `pathlib.Path` and derive paths from `AppState.project_dir`, `data_dir`, or `assets_dir`; never hard-code a developer-machine path.
-- Do not add dependencies without updating `requirements.txt` and verifying the frozen build.
+- Keep direct dependency intent in the matching `requirements*.in` file,
+  regenerate every lock with `.\tools\lock.ps1`, update the relevant dependency
+  contract test, and verify the frozen build after dependency changes.
 - Keep strong references to every displayed `ImageTk.PhotoImage`; otherwise Tkinter may render blank images.
 - Close PyMuPDF documents, PIL image contexts, workbooks where supported, and SQLite connections deterministically.
 - Avoid broad exception swallowing in new code. Existing best-effort icon/UI paths contain it, but new failures should produce actionable status or dialog messages.

@@ -11,6 +11,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv-*/
 venv/
 env/
 
@@ -29,11 +30,17 @@ Thumbs.db
 # ===============================
 *.log
 *.tmp
+.cache/
 
 # ===============================
 # Project specific
 # ===============================
 data/
 config/
+input/
+output/
+to_integrate/
+build/
+dist/
 *.db
 *.sqlite
