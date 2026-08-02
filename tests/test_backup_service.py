@@ -50,7 +50,7 @@ class BackupServiceTests(unittest.TestCase):
             backup_dir=self.project.path("backup"),
         )
 
-        with sqlite3.connect(manifest.database_path) as backup_connection:
+        with closing(sqlite3.connect(manifest.database_path)) as backup_connection:
             value = backup_connection.execute(
                 "SELECT value FROM sample"
             ).fetchone()[0]

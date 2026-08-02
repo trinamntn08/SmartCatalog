@@ -26,7 +26,7 @@ class AppStateSettingsTests(unittest.TestCase):
 
     def test_database_path_is_loaded_from_settings(self) -> None:
         with tempfile.TemporaryDirectory(prefix="smartcatalog-state-") as directory:
-            project_dir = Path(directory)
+            project_dir = Path(directory).resolve()
             data_dir = project_dir / "config" / "database"
             data_dir.mkdir(parents=True)
             settings_path = data_dir / "settings.json"
@@ -39,12 +39,12 @@ class AppStateSettingsTests(unittest.TestCase):
 
             self.assertEqual(
                 state.db_path,
-                data_dir / "sql" / "alternate.db",
+                (data_dir / "sql" / "alternate.db").resolve(),
             )
 
     def test_catalog_pdf_selection_is_restored_after_restart(self) -> None:
         with tempfile.TemporaryDirectory(prefix="smartcatalog-state-") as directory:
-            project_dir = Path(directory)
+            project_dir = Path(directory).resolve()
             source_pdf = project_dir / "source.pdf"
             source_pdf.write_bytes(b"%PDF-test")
             state = AppState(project_dir=project_dir)
@@ -59,11 +59,12 @@ class AppStateSettingsTests(unittest.TestCase):
 
     def test_selected_backup_database_is_restored_after_restart(self) -> None:
         with tempfile.TemporaryDirectory(prefix="smartcatalog-state-") as directory:
-            project_dir = Path(directory)
+            project_dir = Path(directory).resolve()
             backup_database = project_dir / "backups" / "catalog.db"
             backup_database.parent.mkdir(parents=True)
             backup_db = CatalogDB(backup_database, data_dir=backup_database.parent)
             backup_db.upsert_by_code(code="RESTORED-001", page=1)
+            backup_database = backup_database.resolve()
             state = AppState(project_dir=project_dir)
             state.set_database_path(backup_database)
 
