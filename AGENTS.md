@@ -118,9 +118,9 @@ Use PowerShell from the repository root:
 .\.venv-agent\Scripts\python.exe run.py
 ```
 
-Python 3.10 is the currently supported and locally validated interpreter line;
-`.python-version` records the exact local baseline. CI also exercises Python
-3.13 as the migration target. The setup command creates or reuses a separate
+Python 3.13 is the currently supported and locally validated interpreter line;
+`.python-version` records the exact local baseline. CI exercises Python 3.13.
+The setup command creates or reuses a separate
 `.venv-agent`, `.venv-runtime`, or `.venv-build` environment for the selected
 mode, installs its lock, and runs validation in Agent mode.
 Dependency intent lives in `requirements*.in`; generated `requirements*.txt`

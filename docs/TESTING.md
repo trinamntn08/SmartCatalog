@@ -35,7 +35,7 @@ the failure is a regression, an obsolete characterization, or a real defect.
 The canonical check includes dependency consistency, compilation, imports,
 Ruff, the discovered suite, architecture-boundary enforcement, patch
 whitespace, UTF-8 text checks, and local Markdown-link validation. Windows CI
-runs the same Agent setup on Python 3.10 and the Python 3.13 migration target.
+runs the same Agent setup on Python 3.13.
 
 Regenerate all dependency locks after deliberately changing an input file:
 

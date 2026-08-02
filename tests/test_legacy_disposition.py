@@ -69,6 +69,7 @@ class LegacyDispositionTests(unittest.TestCase):
             requirements,
             {
                 "-r requirements.in",
+                "pip==26.1.2",
                 "pip-tools==7.6.0",
                 "ruff==0.15.22",
             },

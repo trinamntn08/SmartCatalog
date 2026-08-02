@@ -8,18 +8,13 @@ on:
 jobs:
   validate:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.10", "3.13"]
-
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python }}
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
+          python-version: "3.13"
       - name: Set up and validate
         shell: pwsh
-        run: .\tools\setup.ps1 -Mode Agent -PythonVersion "${{ matrix.python }}"
+        run: .\tools\setup.ps1 -Mode Agent -PythonVersion "3.13"

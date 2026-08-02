@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - Windows
-- Python 3.10.x (`.python-version` records the validated patch version)
+- Python 3.13.x (`.python-version` records the validated patch version)
 - PowerShell
 - Network access for first-time dependency installation
 
@@ -32,12 +32,10 @@ then use it without package-index access:
 
 Direct dependency intent lives in `requirements.in`, `requirements-dev.in`,
 and `requirements-build.in`. Their matching `.txt` files are generated locks;
-update them only through `.\tools\lock.ps1` under Python 3.10.
+update them only through `.\tools\lock.ps1` under Python 3.13.
 
-Python 3.10 remains the locally and frozen-build validated baseline, but it is
-near end of life. Windows CI also runs the agent suite on Python 3.13. Promote
-3.13 to `.python-version` after a successful disposable frozen build and UI
-smoke test on that interpreter; regenerate all locks at the same checkpoint.
+Python 3.13 is the locally validated baseline and the only interpreter used by
+Windows CI. Validate frozen builds and UI smoke tests on that interpreter.
 
 Normal startup is:
 
