@@ -3,11 +3,14 @@ from __future__ import annotations
 from typing import Optional
 
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
+
+from PIL import Image, ImageTk
 
 from smartcatalog.services.export_preflight import (
     ExportPreflightItem,
-    save_export_preflight_descriptions,
+    save_export_preflight_changes,
+    validate_export_preflight_image,
 )
 
 
@@ -31,12 +34,18 @@ class ExportReviewDialog:
         self._selected: Optional[ExportPreflightItem] = None
         self._dirty = False
         self._ignore_selection_event = False
+        self._image_thumb_refs: list[ImageTk.PhotoImage] = []
+        self._image_thumb_cells: list[tk.Frame] = []
+        self._selected_image_index: Optional[int] = None
+        self._drag_source_index: Optional[int] = None
+        self._drag_start_xy = (0, 0)
+        self._drag_active = False
 
         self.window = tk.Toplevel(parent)
         self.window.title("Kiểm tra dữ liệu trước khi xuất")
         self.window.transient(parent)
-        self.window.geometry("980x520")
-        self.window.minsize(820, 460)
+        self.window.geometry("980x720")
+        self.window.minsize(820, 640)
         self.window.protocol("WM_DELETE_WINDOW", self._cancel)
 
         self.search_var = tk.StringVar()
@@ -44,6 +53,7 @@ class ExportReviewDialog:
         self.summary_var = tk.StringVar()
         self.code_var = tk.StringVar()
         self.status_var = tk.StringVar()
+        self.image_count_var = tk.StringVar()
 
         self._build()
         self._refresh_tree()
@@ -66,8 +76,9 @@ class ExportReviewDialog:
         ttk.Label(
             outer,
             text=(
-                "Sửa mô tả trực tiếp tại đây. Mã không tồn tại và ảnh còn thiếu "
-                "có thể được bỏ qua, nhưng sẽ được báo trong kết quả."
+                "Chỉnh sửa mô tả và hình ảnh tại đây, sau đó nhấn “Lưu cập nhật”. "
+                "Mã không tồn tại và dữ liệu còn thiếu có thể được bỏ qua, nhưng "
+                "sẽ được báo trong kết quả."
             ),
             foreground="#555555",
             wraplength=900,
@@ -78,7 +89,7 @@ class ExportReviewDialog:
         ttk.Label(controls, text="Tìm mã:").pack(side="left")
         search = ttk.Entry(controls, textvariable=self.search_var, width=24)
         search.pack(side="left", padx=(6, 12))
-        search.bind("<KeyRelease>", lambda _event: self._refresh_tree())
+        search.bind("<KeyRelease>", self._on_filter_change)
         ttk.Label(controls, text="Lọc:").pack(side="left")
         filter_box = ttk.Combobox(
             controls,
@@ -88,7 +99,7 @@ class ExportReviewDialog:
             width=27,
         )
         filter_box.pack(side="left", padx=(6, 12))
-        filter_box.bind("<<ComboboxSelected>>", lambda _event: self._refresh_tree())
+        filter_box.bind("<<ComboboxSelected>>", self._on_filter_change)
         ttk.Label(controls, textvariable=self.summary_var).pack(side="right")
 
         # Keep the action bar outside the resizable content area so the buttons
@@ -155,6 +166,61 @@ class ExportReviewDialog:
         for widget in (self.vi_text, self.en_text):
             widget.bind("<<Modified>>", self._on_modified)
 
+        ttk.Label(right, text="Ảnh sản phẩm").pack(anchor="w", pady=(10, 3))
+        self.image_preview_frame = ttk.Frame(right, height=230)
+        self.image_preview_frame.pack(fill="both", expand=True)
+        self.image_preview_frame.pack_propagate(False)
+
+        image_buttons = ttk.Frame(self.image_preview_frame)
+        image_buttons.pack(side="bottom", fill="x", pady=(6, 0))
+        self.add_image_button = ttk.Button(
+            image_buttons,
+            text="Thêm ảnh",
+            command=self._add_images,
+        )
+        self.add_image_button.pack(side="left")
+        self.remove_image_button = ttk.Button(
+            image_buttons,
+            text="Xóa ảnh",
+            command=self._remove_image,
+        )
+        self.remove_image_button.pack(side="left", padx=(6, 0))
+        ttk.Label(image_buttons, textvariable=self.image_count_var).pack(side="right")
+
+        image_thumbs_host = ttk.Frame(self.image_preview_frame)
+        image_thumbs_host.pack(fill="both", expand=True)
+        self.image_thumbs_canvas = tk.Canvas(
+            image_thumbs_host,
+            highlightthickness=0,
+        )
+        image_scrollbar = ttk.Scrollbar(
+            image_thumbs_host,
+            orient="vertical",
+            command=self.image_thumbs_canvas.yview,
+        )
+        self.image_thumbs_canvas.configure(yscrollcommand=image_scrollbar.set)
+        self.image_thumbs_canvas.pack(side="left", fill="both", expand=True)
+        image_scrollbar.pack(side="right", fill="y")
+        self.image_thumbs_inner = ttk.Frame(self.image_thumbs_canvas)
+        self.image_thumbs_window = self.image_thumbs_canvas.create_window(
+            (0, 0),
+            window=self.image_thumbs_inner,
+            anchor="nw",
+        )
+        self.image_thumbs_inner.bind(
+            "<Configure>",
+            lambda _event: self.image_thumbs_canvas.configure(
+                scrollregion=self.image_thumbs_canvas.bbox("all")
+            ),
+        )
+        self.image_thumbs_canvas.bind(
+            "<Configure>",
+            lambda event: self.image_thumbs_canvas.itemconfigure(
+                self.image_thumbs_window,
+                width=event.width,
+            ),
+        )
+
         self.window.bind("<Control-Return>", lambda _event: self._save_and_next())
 
     def _matches_filter(self, issue: ExportPreflightItem) -> bool:
@@ -168,6 +234,10 @@ class ExportReviewDialog:
         if selected == "Mã không tồn tại":
             return issue.unknown_code
         return issue.has_issue
+
+    def _on_filter_change(self, _event=None) -> None:
+        if not self._dirty:
+            self._refresh_tree()
 
     def _refresh_tree(self, select_code: str = "") -> None:
         query = self.search_var.get().strip().casefold()
@@ -217,7 +287,7 @@ class ExportReviewDialog:
             save_before_switch = messagebox.askyesnocancel(
                 "Nội dung chưa được lưu",
                 (
-                    f"Bạn đã thay đổi mô tả của mã {current.code}.\n\n"
+                    f"Bạn đã thay đổi nội dung của mã {current.code}.\n\n"
                     "Bạn có muốn lưu cập nhật trước khi chuyển sang mã khác không?"
                 ),
                 parent=self.window,
@@ -228,6 +298,8 @@ class ExportReviewDialog:
             if save_before_switch and not self._save_current():
                 self._restore_tree_selection(current)
                 return
+            if not save_before_switch:
+                self._discard_current_changes()
 
         self._load_issue(target)
 
@@ -246,7 +318,9 @@ class ExportReviewDialog:
         self.code_var.set(issue.code)
         self.status_var.set(issue.status_text())
         self._set_text(self.vi_text, issue.description_vi)
-        self._set_text(self.en_text, issue.description_en)
+        self._set_text(self.en_text, issue.effective_description_en)
+        self._refresh_image_panel(issue.image_paths)
+        self.add_image_button.configure(state="normal")
         self.vi_text.configure(state="normal")
         self.en_text.configure(state="normal")
         self.save_button.configure(state="normal")
@@ -258,6 +332,256 @@ class ExportReviewDialog:
         widget.delete("1.0", "end")
         widget.insert("1.0", value or "")
         widget.edit_modified(False)
+
+    def _refresh_image_panel(
+        self,
+        image_paths: list[str],
+        *,
+        selected_index: int = 0,
+    ) -> None:
+        for child in self.image_thumbs_inner.winfo_children():
+            child.destroy()
+        self._image_thumb_refs.clear()
+        self._image_thumb_cells.clear()
+        self._selected_image_index = None
+        self.image_count_var.set(f"{len(image_paths)} ảnh")
+        if not image_paths:
+            placeholder = ttk.Label(
+                self.image_thumbs_inner,
+                text="Không có ảnh hiện có",
+                anchor="center",
+            )
+            placeholder.pack(fill="both", expand=True, pady=50)
+            self._update_image_action_states(0)
+            return
+
+        columns = 4
+        for column in range(columns):
+            self.image_thumbs_inner.columnconfigure(column, weight=1)
+        for index, path in enumerate(image_paths):
+            cell = tk.Frame(self.image_thumbs_inner, borderwidth=0, relief="flat")
+            cell.grid(
+                row=index // columns,
+                column=index % columns,
+                padx=4,
+                pady=4,
+                sticky="nsew",
+            )
+            self._image_thumb_cells.append(cell)
+            setattr(cell, "_image_index", index)
+            try:
+                with Image.open(path) as source:
+                    thumbnail = source.convert("RGBA")
+                    thumbnail.thumbnail((96, 96))
+                    tk_thumbnail = ImageTk.PhotoImage(thumbnail)
+                self._image_thumb_refs.append(tk_thumbnail)
+                image_widget = ttk.Label(cell, image=tk_thumbnail)
+            except (
+                OSError,
+                ValueError,
+                tk.TclError,
+                Image.DecompressionBombError,
+            ):
+                image_widget = ttk.Label(cell, text="[Không đọc được]", width=11)
+            image_widget.pack(fill="both", expand=True)
+            setattr(image_widget, "_image_index", index)
+            for widget in (cell, image_widget):
+                widget.bind(
+                    "<ButtonPress-1>",
+                    lambda event, target=index: self._on_image_drag_start(
+                        event,
+                        target,
+                    ),
+                )
+                widget.bind(
+                    "<B1-Motion>",
+                    self._on_image_drag_motion,
+                )
+                widget.bind(
+                    "<ButtonRelease-1>",
+                    self._on_image_drag_release,
+                )
+
+        selected_index = min(max(0, selected_index), len(image_paths) - 1)
+        self._select_image(selected_index)
+
+    def _select_image(self, index: int) -> None:
+        issue = self._selected
+        if issue is None or index < 0 or index >= len(issue.image_paths):
+            return
+        self._selected_image_index = index
+        for cell_index, cell in enumerate(self._image_thumb_cells):
+            selected = cell_index == index
+            cell.configure(
+                borderwidth=(2 if selected else 0),
+                relief=("solid" if selected else "flat"),
+            )
+        self._update_image_action_states(len(issue.image_paths))
+
+    def _update_image_action_states(self, image_count: int) -> None:
+        index = self._selected_image_index
+        has_selection = index is not None and 0 <= index < image_count
+        self.remove_image_button.configure(
+            state=("normal" if has_selection else "disabled")
+        )
+
+    def _add_images(self) -> None:
+        issue = self._selected
+        if issue is None:
+            return
+        selected_paths = filedialog.askopenfilenames(
+            parent=self.window,
+            title="Chọn một hoặc nhiều ảnh",
+            filetypes=[
+                ("Tệp ảnh", "*.png *.jpg *.jpeg *.webp *.bmp"),
+                ("Tất cả tệp", "*.*"),
+            ],
+        )
+        if not selected_paths:
+            return
+        try:
+            validated_paths = [
+                validate_export_preflight_image(path)
+                for path in selected_paths
+            ]
+        except Exception as exc:
+            messagebox.showerror(
+                "Không thể thêm ảnh",
+                str(exc),
+                parent=self.window,
+            )
+            return
+
+        first_new_index = len(issue.image_paths)
+        for path in validated_paths:
+            if path not in issue.image_paths:
+                issue.image_paths.append(path)
+        if len(issue.image_paths) == first_new_index:
+            return
+        self._dirty = True
+        self.status_var.set(f"{issue.status_text()} (chưa lưu)")
+        self._refresh_image_panel(
+            issue.image_paths,
+            selected_index=min(first_new_index, len(issue.image_paths) - 1),
+        )
+
+    def _remove_image(self) -> None:
+        issue = self._selected
+        index = self._selected_image_index
+        if issue is None or index is None:
+            return
+        if index >= len(issue.image_paths):
+            return
+        del issue.image_paths[index]
+        self._dirty = True
+        self.status_var.set(f"{issue.status_text()} (chưa lưu)")
+        self._refresh_image_panel(
+            issue.image_paths,
+            selected_index=max(0, index - 1),
+        )
+
+    def _on_image_drag_start(self, event, index: int) -> None:
+        self._drag_source_index = index
+        self._drag_start_xy = (
+            int(getattr(event, "x_root", 0)),
+            int(getattr(event, "y_root", 0)),
+        )
+        self._drag_active = False
+        self._select_image(index)
+
+    def _on_image_drag_motion(self, event) -> None:
+        if self._drag_source_index is None:
+            return
+        x_root = int(getattr(event, "x_root", 0))
+        y_root = int(getattr(event, "y_root", 0))
+        start_x, start_y = self._drag_start_xy
+        if abs(x_root - start_x) + abs(y_root - start_y) >= 8:
+            self._drag_active = True
+            self.image_thumbs_canvas.configure(cursor="fleur")
+            target_index = self._image_index_at(x_root, y_root)
+            for index, cell in enumerate(self._image_thumb_cells):
+                if index == target_index:
+                    cell.configure(borderwidth=3, relief="ridge")
+                elif index == self._drag_source_index:
+                    cell.configure(borderwidth=2, relief="solid")
+                else:
+                    cell.configure(borderwidth=0, relief="flat")
+
+    def _on_image_drag_release(self, event) -> None:
+        source_index = self._drag_source_index
+        drag_active = self._drag_active
+        self._drag_source_index = None
+        self._drag_active = False
+        self.image_thumbs_canvas.configure(cursor="")
+        if source_index is None or not drag_active:
+            return
+        target_index = self._image_index_at(
+            int(getattr(event, "x_root", 0)),
+            int(getattr(event, "y_root", 0)),
+        )
+        if target_index is not None:
+            self._reorder_image(source_index, target_index)
+        else:
+            self._select_image(source_index)
+
+    def _image_index_at(self, x_root: int, y_root: int) -> Optional[int]:
+        try:
+            canvas_x = int(self.image_thumbs_canvas.winfo_rootx())
+            canvas_y = int(self.image_thumbs_canvas.winfo_rooty())
+            canvas_right = canvas_x + int(self.image_thumbs_canvas.winfo_width())
+            canvas_bottom = canvas_y + int(self.image_thumbs_canvas.winfo_height())
+            if not (
+                canvas_x <= x_root <= canvas_right
+                and canvas_y <= y_root <= canvas_bottom
+            ):
+                return None
+            widget = self.window.winfo_containing(x_root, y_root)
+        except tk.TclError:
+            return None
+
+        current = widget
+        while current is not None:
+            index = getattr(current, "_image_index", None)
+            if index is not None:
+                return int(index)
+            current = getattr(current, "master", None)
+
+        nearest: tuple[int, int] | None = None
+        for index, cell in enumerate(self._image_thumb_cells):
+            try:
+                center_x = int(cell.winfo_rootx()) + int(cell.winfo_width()) // 2
+                center_y = int(cell.winfo_rooty()) + int(cell.winfo_height()) // 2
+            except tk.TclError:
+                continue
+            distance = abs(x_root - center_x) + abs(y_root - center_y)
+            if nearest is None or distance < nearest[0]:
+                nearest = (distance, index)
+        return nearest[1] if nearest is not None else None
+
+    def _reorder_image(self, source_index: int, target_index: int) -> None:
+        issue = self._selected
+        if issue is None:
+            return
+        if not (
+            0 <= source_index < len(issue.image_paths)
+            and 0 <= target_index < len(issue.image_paths)
+        ):
+            return
+        moved = issue.image_paths.pop(source_index)
+        issue.image_paths.insert(target_index, moved)
+        if source_index == target_index:
+            return
+        self._dirty = True
+        self.status_var.set(f"{issue.status_text()} (chưa lưu)")
+        self._refresh_image_panel(issue.image_paths, selected_index=target_index)
+
+    def _discard_current_changes(self) -> None:
+        issue = self._selected
+        if issue is None:
+            return
+        issue.image_paths = list(issue.persisted_image_paths)
+        issue.missing_images = not bool(issue.image_paths)
+        self._dirty = False
 
     def _on_modified(self, event) -> None:
         if event.widget.edit_modified():
@@ -271,11 +595,12 @@ class ExportReviewDialog:
         description_vi = self.vi_text.get("1.0", "end-1c").strip()
         description_en = self.en_text.get("1.0", "end-1c").strip()
         try:
-            save_export_preflight_descriptions(
+            save_export_preflight_changes(
                 issue,
                 db=self.db,
                 description_vi=description_vi,
                 description_en=description_en,
+                image_paths=list(issue.image_paths),
             )
         except Exception as exc:
             if show_errors:
@@ -315,6 +640,7 @@ class ExportReviewDialog:
             )
             if not discard:
                 return
+            self._discard_current_changes()
         self.result = "continue"
         self.window.destroy()
 
@@ -325,6 +651,7 @@ class ExportReviewDialog:
             parent=self.window,
         ):
             return
+        self._discard_current_changes()
         self.result = "cancel"
         self.window.destroy()
 
@@ -334,6 +661,9 @@ class ExportReviewDialog:
         self.status_var.set("")
         self._set_text(self.vi_text, "")
         self._set_text(self.en_text, "")
+        self._refresh_image_panel([])
         self.vi_text.configure(state="disabled")
         self.en_text.configure(state="disabled")
+        self.add_image_button.configure(state="disabled")
+        self.remove_image_button.configure(state="disabled")
         self.save_button.configure(state="disabled")

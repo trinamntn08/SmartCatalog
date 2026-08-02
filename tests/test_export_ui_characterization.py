@@ -23,10 +23,11 @@ from smartcatalog.services.catalog_export import (
 from smartcatalog.services.export_preflight import (
     ExportPreflightItem as ServiceExportPreflightItem,
     prepare_export_preflight,
+    save_export_preflight_changes,
     save_export_preflight_descriptions,
 )
 from smartcatalog.services.workbook_product_reader import read_workbook_products
-from smartcatalog.ui.export_review_dialog import ExportPreflightItem
+from smartcatalog.ui.export_review_dialog import ExportPreflightItem, ExportReviewDialog
 from smartcatalog.ui.main_window import MainWindow
 from smartcatalog.utils.post_processing import (
     DEFAULT_SHEET_NAME,
@@ -192,8 +193,216 @@ class PreflightCharacterizationTests(unittest.TestCase):
         self.assertLess(status.index("VI"), status.index("EN"))
         self.assertIn("98", issue.code)
 
+    def test_review_editor_loads_existing_content_and_images(self) -> None:
+        class ValueSink:
+            value = ""
+
+            def set(self, value: str) -> None:
+                self.value = value
+
+        class TextSink:
+            value = ""
+
+            def configure(self, **_kwargs) -> None:
+                pass
+
+            def delete(self, *_args) -> None:
+                self.value = ""
+
+            def insert(self, _index: str, value: str) -> None:
+                self.value = value
+
+            def edit_modified(self, _value: bool) -> None:
+                pass
+
+        dialog = ExportReviewDialog.__new__(ExportReviewDialog)
+        dialog.code_var = ValueSink()
+        dialog.status_var = ValueSink()
+        dialog.vi_text = TextSink()
+        dialog.en_text = TextSink()
+        dialog.save_button = SimpleNamespace(configure=lambda **_kwargs: None)
+        dialog.add_image_button = SimpleNamespace(configure=lambda **_kwargs: None)
+        displayed_images: list[list[str]] = []
+        dialog._refresh_image_panel = (
+            lambda paths: displayed_images.append(list(paths))
+        )
+
+        dialog._load_issue(
+            ExportPreflightItem(
+                code="12-345-67",
+                description_vi="",
+                description_en="",
+                pdf_description="Existing PDF English",
+                image_paths=["first.png", "second.png"],
+                missing_vi=True,
+            )
+        )
+
+        self.assertEqual(dialog.vi_text.value, "")
+        self.assertEqual(dialog.en_text.value, "Existing PDF English")
+        self.assertEqual(displayed_images, [["first.png", "second.png"]])
+
+    def test_review_add_and_remove_images_remain_drafts(self) -> None:
+        issue = ExportPreflightItem(
+            code="12-345-67",
+            missing_images=True,
+        )
+        statuses: list[str] = []
+        previews: list[list[str]] = []
+        dialog = ExportReviewDialog.__new__(ExportReviewDialog)
+        dialog._selected = issue
+        dialog.window = object()
+        dialog.status_var = SimpleNamespace(
+            set=lambda value: statuses.append(value)
+        )
+        dialog._dirty = False
+        dialog._refresh_image_panel = (
+            lambda paths, **_kwargs: previews.append(list(paths))
+        )
+
+        with (
+            patch(
+                "smartcatalog.ui.export_review_dialog.filedialog.askopenfilenames",
+                return_value=("first.png", "second.png"),
+            ),
+            patch(
+                "smartcatalog.ui.export_review_dialog."
+                "validate_export_preflight_image",
+                side_effect=lambda path: path,
+            ),
+        ):
+            dialog._add_images()
+
+        self.assertEqual(issue.image_paths, ["first.png", "second.png"])
+        self.assertEqual(issue.persisted_image_paths, [])
+        self.assertTrue(issue.missing_images)
+        self.assertTrue(dialog._dirty)
+        self.assertEqual(previews, [["first.png", "second.png"]])
+        self.assertTrue(statuses)
+
+        dialog._drag_source_index = 1
+        dialog._drag_active = True
+        dialog.image_thumbs_canvas = SimpleNamespace(
+            configure=lambda **_kwargs: None
+        )
+        dialog._image_index_at = lambda _x, _y: 0
+        dialog._on_image_drag_release(SimpleNamespace(x_root=10, y_root=10))
+
+        self.assertEqual(issue.image_paths, ["second.png", "first.png"])
+        self.assertEqual(previews[-1], ["second.png", "first.png"])
+
+        dialog._selected_image_index = 0
+        dialog._remove_image()
+
+        self.assertEqual(issue.image_paths, ["first.png"])
+        self.assertEqual(issue.persisted_image_paths, [])
+        self.assertEqual(previews[-1], ["first.png"])
+
 
 class ExportServiceBoundaryTests(ExportTestCase):
+    def test_preflight_save_replaces_multiple_images_only_when_called(self) -> None:
+        item_id = self.create_item(
+            code="77-777-77",
+            description_vi="",
+            description_en="",
+        )
+        path = self.create_input_workbook([("77-777-77", 1)])
+        first_source = create_image_fixture(
+            self.project.path("first-selected.png"),
+            size=(80, 60),
+            color=(20, 40, 60),
+        )
+        second_source = create_image_fixture(
+            self.project.path("second-selected.png"),
+            size=(60, 80),
+            color=(60, 40, 20),
+        )
+        rows = read_workbook_products(path)
+        issue = prepare_export_preflight(
+            rows,
+            db=self.db,
+            include_description_vi=False,
+            include_description_en=False,
+        ).issues[0]
+
+        issue.image_paths.extend([str(first_source), str(second_source)])
+        self.assertEqual(self.db.get_item_by_code("77-777-77").images, [])
+
+        save_export_preflight_changes(
+            issue,
+            db=self.db,
+            description_vi="",
+            description_en="",
+            image_paths=list(issue.image_paths),
+        )
+
+        stored_paths = list(issue.image_paths)
+        self.assertEqual(len(stored_paths), 2)
+        for stored_path in stored_paths:
+            stored = Path(stored_path)
+            self.assertTrue(stored.is_file())
+            self.assertEqual(
+                stored.parent,
+                self.data_dir / "assets" / "manual_import",
+            )
+        self.assertEqual(issue.persisted_image_paths, stored_paths)
+        self.assertFalse(issue.missing_images)
+        self.assertFalse(issue.has_issue)
+        saved = self.db.get_item_by_code("77-777-77")
+        self.assertEqual(saved.images, stored_paths)
+        self.assertEqual(
+            self.db.list_image_sources_for_item(item_id),
+            [(stored_paths[0], "add"), (stored_paths[1], "add")],
+        )
+        links = self.db.list_asset_links_for_item(item_id)
+        self.assertEqual(len(links), 2)
+        self.assertEqual([link["is_primary"] for link in links], [1, 0])
+
+        reordered_paths = [stored_paths[1], stored_paths[0]]
+        save_export_preflight_changes(
+            issue,
+            db=self.db,
+            description_vi="",
+            description_en="",
+            image_paths=reordered_paths,
+        )
+
+        self.assertEqual(issue.image_paths, reordered_paths)
+        self.assertEqual(
+            self.db.get_item_by_code("77-777-77").images,
+            reordered_paths,
+        )
+
+        save_export_preflight_changes(
+            issue,
+            db=self.db,
+            description_vi="",
+            description_en="",
+            image_paths=[reordered_paths[0]],
+        )
+
+        self.assertEqual(issue.image_paths, [reordered_paths[0]])
+        self.assertEqual(
+            self.db.get_item_by_code("77-777-77").images,
+            [reordered_paths[0]],
+        )
+        remaining_link = self.db.list_asset_links_for_item(item_id)[0]
+        self.assertEqual(remaining_link["is_primary"], 1)
+
+        result = export_catalog(
+            path,
+            rows,
+            db=self.db,
+            project_dir=self.project.path(),
+            options=CatalogExportOptions(
+                include_description_vi=False,
+                include_description_en=False,
+                preserve_image_order=True,
+            ),
+        )
+        self.assertEqual(result.images_found, 1)
+        self.assertEqual(result.missing_images, 0)
+
     def test_preflight_save_creates_unknown_item_for_current_export(self) -> None:
         issue = ExportPreflightItem(code="77-777-77", unknown_code=True)
 
@@ -247,6 +456,43 @@ class ExportServiceBoundaryTests(ExportTestCase):
         self.assertEqual(saved.id, item_id)
         self.assertEqual(saved.description_vietnames_from_excel, "Updated VI")
         self.assertEqual(saved.description_excel, "Updated EN")
+
+    def test_preflight_review_shows_pdf_english_fallback_without_copying_it(self) -> None:
+        self.create_item(
+            code="77-777-77",
+            description_vi="",
+            description_en="",
+            pdf_description="Existing PDF English",
+        )
+        path = self.create_input_workbook([("77-777-77", 1)])
+        rows = read_workbook_products(path)
+
+        preflight = prepare_export_preflight(
+            rows,
+            db=self.db,
+            include_description_vi=True,
+            include_description_en=True,
+        )
+        issue = preflight.issues[0]
+
+        self.assertTrue(issue.missing_vi)
+        self.assertFalse(issue.missing_en)
+        self.assertEqual(issue.description_en, "")
+        self.assertEqual(issue.effective_description_en, "Existing PDF English")
+
+        save_export_preflight_descriptions(
+            issue,
+            db=self.db,
+            description_vi="New Vietnamese",
+            description_en=issue.effective_description_en,
+        )
+
+        saved = self.db.get_item_by_code("77-777-77")
+        self.assertEqual(saved.description_vietnames_from_excel, "New Vietnamese")
+        self.assertEqual(saved.description_excel, "")
+        self.assertEqual(saved.description, "Existing PDF English")
+        self.assertFalse(issue.missing_vi)
+        self.assertFalse(issue.missing_en)
 
     def test_reader_preflight_and_writer_are_callable_without_tkinter(self) -> None:
         self.create_item(
