@@ -84,8 +84,8 @@ The supported Windows build is `build_exe.ps1` plus `SmartCatalog.spec`.
 Deliver the complete `dist/SmartCatalog/` directory. Development databases,
 imported PDFs, and product images are intentionally excluded.
 
-See `AGENTS.md` for contributor constraints and
-`docs/REFACTOR_BASELINE.md` for characterization and validation evidence.
+See `AGENTS.md` for contributor constraints and `TESTING.md` for the current
+validation policy and known behaviors.
 
 ## Related documents
 

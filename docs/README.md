@@ -20,19 +20,10 @@ Use this page to find the right document quickly.
 - [Contributor rules](../AGENTS.md) — mandatory repository and data-safety
   constraints.
 
-## Completed refactor records
+## Maintenance reference
 
-These documents are historical evidence. They explain why the current
-architecture exists; they are not step-by-step instructions for new work.
-
-- [Refactor state](REFACTOR_STATE.md)
-- [Refactor plan](REFACTOR_PLAN.md)
-- [Baseline and checkpoint history](REFACTOR_BASELINE.md)
-- [Final validation](FINAL_VALIDATION.md)
-- [Post-refactor cleanup](POST_REFACTOR_CLEANUP.md)
-- [Legacy module disposition](LEGACY_MODULE_DISPOSITION.md)
-- [Error and resource audit](ERROR_HANDLING_AUDIT.md)
-- [Naming and encoding audit](NAMING_ENCODING_AUDIT.md)
+- [Legacy module disposition](LEGACY_MODULE_DISPOSITION.md) — removed modules
+  and dependencies, plus their active replacements.
 
 ## Source of truth
 
@@ -40,4 +31,4 @@ architecture exists; they are not step-by-step instructions for new work.
 - Current contributor policy: `AGENTS.md`.
 - Current architecture: `docs/ARCHITECTURE.md`.
 - Current build process: `build_exe.ps1` and `BUILD_EXE.md`.
-- Historical decisions: refactor and audit documents listed above.
+- Historical refactor decisions and checkpoint evidence: Git history.

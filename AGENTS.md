@@ -193,11 +193,10 @@ Do not edit generated `build/` or `dist/` contents. Change the spec or build scr
 
 ## Change workflow
 
-The behavior-preserving refactor is complete. `docs/REFACTOR_STATE.md`,
-`docs/REFACTOR_PLAN.md`, and `docs/REFACTOR_BASELINE.md` are historical
-checkpoint records, not an active phase queue. New features, bug fixes, and
-release work must be separately scoped and must preserve the architecture,
-data-safety rules, and regression baseline in this guide.
+The behavior-preserving refactor is complete. Git history is the authoritative
+record of its phased checkpoints; there is no active phase queue. New features,
+bug fixes, and release work must be separately scoped and must preserve the
+architecture, data-safety rules, and regression baseline in this guide.
 
 Before editing:
 

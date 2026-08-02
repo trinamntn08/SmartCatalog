@@ -2,13 +2,13 @@
 
 [Documentation index](README.md)
 
-Historical removal record. The current module map is documented in
-`ARCHITECTURE.md` and `AGENTS.md`.
+This is the active reference for components that must remain removed unless a
+separately scoped change deliberately replaces the supported architecture.
+The current module map is documented in `ARCHITECTURE.md` and `AGENTS.md`.
 
-Phase 12 reviewed every module previously listed as legacy/unwired. Searches
-covered tracked application code, tests, build configuration, and
-documentation. Runtime/generated/user-data directories and `to_integrate/`
-were excluded.
+The removal audit covered tracked application code, tests, build configuration,
+and documentation. Runtime/generated/user-data directories and
+`to_integrate/` were excluded.
 
 ## Removed modules
 
@@ -40,12 +40,11 @@ Retained runtime requirements are `pandas`, `PyMuPDF`, `Pillow`, and
 `openpyxl`. PyInstaller remains a build-environment requirement documented in
 `BUILD_EXE.md`, not an application runtime requirement.
 
-## Validation obligations
+## Maintenance rules
 
-- Compile and import the active application.
-- Run the complete automated suite.
-- Confirm no tracked reference to a removed module remains outside historical
-  refactor/contributor records.
-- Build the checked-in PyInstaller spec in disposable work/dist directories so
-  existing repository `build/` and `dist/` contents remain untouched.
-- Smoke-run the frozen executable when the environment permits it.
+- Do not restore a removed implementation solely for compatibility with an
+  untracked or unsupported caller.
+- Update this file when a deliberate change removes another module or changes
+  one of the listed active replacements.
+- Keep the architecture-boundary and legacy-disposition tests aligned with the
+  supported module map.
