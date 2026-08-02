@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
+from smartcatalog.db.catalog_db import CatalogDB
 from smartcatalog.state import AppState
 
 
-class AppStatePathTests(unittest.TestCase):
-    def test_first_launch_uses_default_database_path_without_settings(self) -> None:
+class AppStateSettingsTests(unittest.TestCase):
+    def test_first_launch_writes_default_database_path_to_settings(self) -> None:
         with tempfile.TemporaryDirectory(prefix="smartcatalog-state-") as directory:
             state = AppState(project_dir=Path(directory))
 
@@ -16,9 +18,13 @@ class AppStatePathTests(unittest.TestCase):
                 state.db_path,
                 state.data_dir / "sql" / "catalog.db",
             )
-            self.assertFalse((state.data_dir / "settings.json").exists())
+            settings = json.loads(state.settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                settings["database_path"],
+                str(Path("sql") / "catalog.db"),
+            )
 
-    def test_legacy_settings_file_is_ignored(self) -> None:
+    def test_database_path_is_loaded_from_settings(self) -> None:
         with tempfile.TemporaryDirectory(prefix="smartcatalog-state-") as directory:
             project_dir = Path(directory)
             data_dir = project_dir / "config" / "database"
@@ -33,14 +39,10 @@ class AppStatePathTests(unittest.TestCase):
 
             self.assertEqual(
                 state.db_path,
-                data_dir / "sql" / "catalog.db",
-            )
-            self.assertEqual(
-                settings_path.read_text(encoding="utf-8"),
-                '{"database_path": "sql/alternate.db"}',
+                data_dir / "sql" / "alternate.db",
             )
 
-    def test_catalog_pdf_selection_is_kept_for_current_session(self) -> None:
+    def test_catalog_pdf_selection_is_restored_after_restart(self) -> None:
         with tempfile.TemporaryDirectory(prefix="smartcatalog-state-") as directory:
             project_dir = Path(directory)
             source_pdf = project_dir / "source.pdf"
@@ -52,20 +54,36 @@ class AppStatePathTests(unittest.TestCase):
             expected = state.data_dir / "catalog_pdfs" / "source.pdf"
             self.assertEqual(state.catalog_pdf_path, expected)
             self.assertTrue(expected.is_file())
-            self.assertFalse((state.data_dir / "settings.json").exists())
+            restarted_state = AppState(project_dir=project_dir)
+            self.assertEqual(restarted_state.catalog_pdf_path, expected)
 
-    def test_new_state_returns_to_default_after_runtime_database_switch(self) -> None:
+    def test_selected_backup_database_is_restored_after_restart(self) -> None:
         with tempfile.TemporaryDirectory(prefix="smartcatalog-state-") as directory:
             project_dir = Path(directory)
+            backup_database = project_dir / "backups" / "catalog.db"
+            backup_database.parent.mkdir(parents=True)
+            backup_db = CatalogDB(backup_database, data_dir=backup_database.parent)
+            backup_db.upsert_by_code(code="RESTORED-001", page=1)
             state = AppState(project_dir=project_dir)
-            state.db_path = project_dir / "another.db"
+            state.set_database_path(backup_database)
 
             restarted_state = AppState(project_dir=project_dir)
-
-            self.assertEqual(
+            restarted_db = CatalogDB(
                 restarted_state.db_path,
-                restarted_state.data_dir / "sql" / "catalog.db",
+                data_dir=restarted_state.data_dir,
             )
+
+            self.assertEqual(restarted_state.db_path, backup_database)
+            self.assertEqual(restarted_state.data_dir, backup_database.parent)
+            self.assertEqual(
+                restarted_state.assets_dir,
+                backup_database.parent / "assets",
+            )
+            self.assertIsNotNone(restarted_db.get_item_by_code("RESTORED-001"))
+            settings = json.loads(
+                restarted_state.settings_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(settings["database_path"], str(backup_database))
 
 
 if __name__ == "__main__":

@@ -10,7 +10,9 @@ from unittest.mock import patch
 from tests import support as _test_support
 from tests.support.fixtures import TemporaryProject
 
+from smartcatalog.db.catalog_db import CatalogDB
 from smartcatalog.services.backup_service import BackupError, backup_catalog
+from smartcatalog.state import AppState
 from smartcatalog.ui.controllers.workflows_controller import (
     WorkflowsControllerMixin,
     _database_data_dir,
@@ -68,6 +70,40 @@ class BackupServiceTests(unittest.TestCase):
             _database_data_dir(nested_database),
             nested_database.parent.parent,
         )
+
+    def test_database_switch_is_reopened_on_next_startup(self) -> None:
+        project_dir = self.project.path("application")
+        selected_database = self.project.path("backup", "catalog.db")
+        selected_database.parent.mkdir(parents=True)
+        selected_db = CatalogDB(
+            selected_database,
+            data_dir=selected_database.parent,
+        )
+        selected_db.upsert_by_code(code="PERSISTED-001", page=1)
+        state = AppState(project_dir=project_dir)
+        items_tree = SimpleNamespace(
+            selection=lambda: (),
+            selection_remove=lambda _selection: None,
+        )
+        window = SimpleNamespace(
+            state=state,
+            _busy=SimpleNamespace(get=lambda: False),
+            _set_status=lambda _message: None,
+            items_tree=items_tree,
+            _clear_item_form=lambda: None,
+            refresh_items=lambda: None,
+            _update_pdf_tools_label=lambda: None,
+        )
+
+        WorkflowsControllerMixin._switch_database(window, selected_database)
+
+        restarted_state = AppState(project_dir=project_dir)
+        restarted_db = CatalogDB(
+            restarted_state.db_path,
+            data_dir=restarted_state.data_dir,
+        )
+        self.assertEqual(restarted_state.db_path, selected_database)
+        self.assertIsNotNone(restarted_db.get_item_by_code("PERSISTED-001"))
 
     def test_backup_manifest_marks_missing_optional_sources(self) -> None:
         database = self.project.path("catalog.db")

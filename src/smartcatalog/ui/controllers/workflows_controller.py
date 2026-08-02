@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from smartcatalog.db.catalog_db import CatalogDB
+from smartcatalog.state import database_data_dir
 from smartcatalog.loader.pdf_loader import build_or_update_db_from_pdf
 from smartcatalog.services.backup_service import backup_catalog
 from smartcatalog.services.catalog_export import CatalogExportOptions, export_catalog
@@ -29,10 +30,7 @@ def _safe_ui(root: tk.Misc, fn) -> None:
 
 def _database_data_dir(database_path: Path) -> Path:
     """Return the portable data root containing a selected catalog database."""
-    parent = database_path.parent
-    if parent.name.casefold() == "sql":
-        return parent.parent
-    return parent
+    return database_data_dir(database_path)
 
 
 class WorkflowsControllerMixin:
@@ -82,12 +80,18 @@ class WorkflowsControllerMixin:
             )
             return
 
-        self.state.data_dir = selected_data_dir
-        self.state.assets_dir = selected_data_dir / "assets"
-        self.state.db_path = selected_path
+        try:
+            self.state.set_database_path(selected_path)
+        except OSError as exc:
+            messagebox.showerror(
+                "Không thể lưu CSDL",
+                "Cơ sở dữ liệu đã mở được nhưng không thể lưu "
+                f"lựa chọn cho lần khởi động sau:\n\n{exc}",
+            )
+            return
+
         self.state.db = selected_db
         self.state.items_cache = []
-        self.state.catalog_pdf_path = None
         self._selected = None
         self._selected_snapshot = None
         try:

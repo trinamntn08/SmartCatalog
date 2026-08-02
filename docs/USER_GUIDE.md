@@ -111,6 +111,7 @@ release, data is stored beside `SmartCatalog.exe`:
 ```text
 config/database/
 ├── sql/catalog.db
+├── settings.json
 ├── catalog_pdfs/
 └── assets/
     ├── excel_import/
@@ -120,9 +121,9 @@ config/database/
 
 The release package intentionally starts without the development database or
 imported user content. First launch creates the writable directory structure
-and opens `sql/catalog.db`. Use **Tải CSDL đã sao lưu...** in the toolbar to
-open another existing SQLite catalog for the current session. The default
-catalog is used again the next time the application starts.
+and records `sql/catalog.db` in `settings.json`. Use **Tải CSDL đã sao
+lưu...** in the toolbar to open another existing SQLite catalog. That choice
+is saved and reopened automatically the next time the application starts.
 
 For a portable copy, move or back up the complete `config/database/` folder,
 not only the SQLite file. Product images and catalog PDFs are separate files
@@ -131,8 +132,8 @@ whose paths are stored relative to that folder.
 ## Troubleshooting
 
 - If the application starts with an empty catalog, confirm whether you launched
-  the source version or a separate release folder, then use the database menu
-  to open the intended catalog.
+  the source version or a separate release folder, then check `database_path`
+  in that installation's `config\database\settings.json`.
 - If a PDF or Excel operation takes time, wait for the status bar; long work
   runs in the background.
 - If export data is missing, check the product code and the pre-export review.
