@@ -48,7 +48,7 @@ the MuPDF binaries required by `fitz`/PyMuPDF.
 The build includes:
 
 - `icons/icon.ico`
-- `config/database/assets/bg.jpg`
+- `icons/bg.jpg`
 - the complete `pymupdf` and compatibility `fitz` packages
 
 `build_exe.ps1` also copies the icon and branding image beside the executable

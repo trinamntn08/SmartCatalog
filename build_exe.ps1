@@ -45,12 +45,10 @@ finally {
 }
 
 $iconTarget = Join-Path $releaseRoot "icons"
-$brandingTarget = Join-Path $releaseRoot "config\database\assets"
 New-Item -ItemType Directory -Force -Path $iconTarget | Out-Null
-New-Item -ItemType Directory -Force -Path $brandingTarget | Out-Null
 
 Copy-Item -LiteralPath (Join-Path $projectRoot "icons\icon.ico") -Destination $iconTarget -Force
-Copy-Item -LiteralPath (Join-Path $projectRoot "config\database\assets\bg.jpg") -Destination $brandingTarget -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "icons\bg.jpg") -Destination $iconTarget -Force
 
 Write-Host ""
 Write-Host "SmartCatalog build completed:"

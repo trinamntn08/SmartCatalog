@@ -22,7 +22,7 @@ from PIL import Image as PILImage
 
 PX_TO_EMU = 9525
 DEFAULT_SHEET_NAME = "form đầu ra"
-DEFAULT_BG_RELATIVE_PATH = Path("config") / "database" / "assets" / "bg.jpg"
+DEFAULT_BG_RELATIVE_PATH = Path("icons") / "bg.jpg"
 _NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _NS_DOC_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _NS_PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships"

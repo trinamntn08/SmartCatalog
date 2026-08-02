@@ -18,3 +18,16 @@ jobs:
       - name: Set up and validate
         shell: pwsh
         run: .\tools\setup.ps1 -Mode Agent -PythonVersion "3.13"
+      - name: Set up build environment
+        shell: pwsh
+        run: .\tools\setup.ps1 -Mode Build -PythonVersion "3.13"
+      - name: Build application
+        shell: pwsh
+        run: .\build_exe.ps1
+      - name: Upload application
+        uses: actions/upload-artifact@v7
+        with:
+          name: SmartCatalog-Windows
+          path: dist/SmartCatalog/
+          if-no-files-found: error
+          retention-days: 30

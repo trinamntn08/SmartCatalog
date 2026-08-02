@@ -14,7 +14,7 @@ pymupdf_datas = [
 
 datas = [
     ("icons/icon.ico", "icons"),
-    ("config/database/assets/bg.jpg", "config/database/assets"),
+    ("icons/bg.jpg", "icons"),
 ]
 datas += pymupdf_datas + fitz_datas
 

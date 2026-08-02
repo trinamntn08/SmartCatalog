@@ -826,7 +826,7 @@ class FullExportWorkflowCharacterizationTests(ExportTestCase):
 class BrandingPackageCharacterizationTests(ExportTestCase):
     def create_branding(self) -> Path:
         return create_image_fixture(
-            self.data_dir / "assets" / "bg.jpg",
+            self.project.path("icons", "bg.jpg"),
             size=(200, 40),
             color=(30, 80, 140),
         )
