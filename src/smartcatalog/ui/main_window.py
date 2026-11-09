@@ -20,6 +20,7 @@ from smartcatalog.ui.controllers.items_controller import ItemsControllerMixin
 from smartcatalog.ui.controllers.item_form_controller import ItemFormControllerMixin
 from smartcatalog.ui.controllers.workflows_controller import WorkflowsControllerMixin
 from smartcatalog.ui.pdf_crop_window import PdfCropWindow
+from smartcatalog.ui.pdf_search_window import PdfSearchWindow
 from smartcatalog.utils.ui_dispatch import dispatch_to_tk
 
 def _safe_ui(root: tk.Misc, fn: Callable[[], None]) -> None:
@@ -153,6 +154,12 @@ class MainWindow(
         self._search_opts_popup: Optional[tk.Toplevel] = None
         self._search_opts_root_bind_id: Optional[str] = None
 
+        pdf_tools = ttk.Frame(self)
+        pdf_tools.pack(fill="x", pady=(0, 6))
+        ttk.Button(pdf_tools, text="Tìm & ghi chú PDF", command=self.on_open_pdf_search).pack(side="left")
+        ttk.Label(pdf_tools, text="  Tìm mã / từ khóa, đánh dấu PDF và xuất số trang ra Excel").pack(side="left")
+        self._pdf_search_window = None
+
         # Panes
         self.panes = ttk.PanedWindow(self, orient="horizontal")
         self.panes.pack(side="top", fill="both", expand=True)
@@ -169,6 +176,13 @@ class MainWindow(
 
         # Initial split: left 60%, right 40%
         self.root.after(80, self._set_initial_pane_ratio)
+
+    def on_open_pdf_search(self) -> None:
+        if self._pdf_search_window is not None and self._pdf_search_window.winfo_exists():
+            self._pdf_search_window.deiconify()
+            self._pdf_search_window.lift()
+            return
+        self._pdf_search_window = PdfSearchWindow(self)
 
     def _set_initial_pane_ratio(self) -> None:
         try:

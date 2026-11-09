@@ -1,10 +1,19 @@
+[CmdletBinding()]
+param(
+    [string]$OutputDirectory = "dist"
+)
+
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pythonExe = Join-Path $projectRoot ".venv-build\Scripts\python.exe"
 $specPath = Join-Path $projectRoot "SmartCatalog.spec"
 $buildRoot = Join-Path $projectRoot "build"
-$distributionRoot = Join-Path $projectRoot "dist"
+$distributionRoot = if ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
+    $OutputDirectory
+} else {
+    Join-Path $projectRoot $OutputDirectory
+}
 $releaseRoot = Join-Path $distributionRoot "SmartCatalog"
 
 if (-not (Test-Path -LiteralPath $pythonExe)) {

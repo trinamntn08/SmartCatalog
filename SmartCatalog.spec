@@ -49,6 +49,9 @@ a = Analysis(
         "IPython",
         "matplotlib",
         "notebook",
+        # The application does not use pandas Styler, which otherwise pulls
+        # in optional Jinja2 templates and triggers a missing-import warning.
+        "pandas.io.formats.style",
         "pytest",
         "scipy",
     ],

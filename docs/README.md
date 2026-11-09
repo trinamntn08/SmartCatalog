@@ -20,6 +20,11 @@ Use this page to find the right document quickly.
 - [Contributor rules](../AGENTS.md) — mandatory repository and data-safety
   constraints.
 
+## Planned features
+
+- [PDF search and notes integration plan](PDF_SEARCH_NOTES_INTEGRATION_PLAN.md) —
+  proposed UI, implementation steps, safety rules and acceptance gates; not yet implemented.
+
 ## Maintenance reference
 
 - [Legacy module disposition](LEGACY_MODULE_DISPOSITION.md) — removed modules
