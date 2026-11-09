@@ -14,3 +14,6 @@ apply to changes under `src/smartcatalog/loader/`.
   nearest-image changes as high-impact compatibility changes.
 - Exercise changes with generated single- and multi-column PDFs, unusual page
   dimensions, variable Excel headers, Unicode text, and resource-closure tests.
+- The supported pinned workbook path is `.xlsx`. A dialog's `.xls` filter does
+  not prove legacy-format support; do not add documentation promises or a new
+  reader dependency without an explicit compatibility change and build check.

@@ -20,12 +20,12 @@ and documentation. Runtime/generated/user-data directories and
 | `src/smartcatalog/matcher/pdf_matcher.py` | No tracked caller. Active matching policies live in the Excel services and PDF import pipeline. The now-empty `matcher` package marker was also removed. |
 | `src/smartcatalog/ui/controllers/pdf_viewer_controller.py` | No tracked caller and not mixed into `MainWindow`. Active manual PDF cropping is `ui/pdf_crop_window.py`; candidate assignment is `ui/controllers/candidates_controller.py`. |
 | `src/smartcatalog/utils/pdf_exporter.py` | No tracked caller. Supported export is Excel post-processing through `services/catalog_export.py` and `utils/post_processing.py`. |
-| `src/smartcatalog/config/settings.py` | No tracked caller. Runtime path/settings behavior is owned by `state.py`; its two experimental constants had no consumer. |
+| `src/smartcatalog/config/settings.py` | No tracked caller. Runtime path/settings behavior is owned by `state.py`; its two experimental constants had no consumer. The remaining unused `config/__init__.py` marker was removed during the documentation/release audit. |
 
 No capability from these modules was migrated or revived because the
 supported workflows already have active replacements.
 
-## Removed requirements
+## Removed direct requirements
 
 | Requirement | Evidence |
 |---|---|
@@ -39,6 +39,8 @@ supported workflows already have active replacements.
 Retained runtime requirements are `pandas`, `PyMuPDF`, `Pillow`, and
 `openpyxl`. PyInstaller remains a build-environment requirement documented in
 `BUILD_EXE.md`, not an application runtime requirement.
+Removing a direct requirement does not remove dependencies needed transitively;
+for example, NumPy remains in generated locks as a pandas dependency.
 
 ## Maintenance rules
 

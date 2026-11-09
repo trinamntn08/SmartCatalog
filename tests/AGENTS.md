@@ -14,3 +14,8 @@ apply to changes under `tests/`.
   in current documentation.
 - Keep UI-independent services importable in headless tests and mock Tk dialogs
   only at controller/view boundaries.
+- `benchmark_performance.py` is opt-in and requires a Tk desktop. Keep wall-clock
+  thresholds out of regression tests; test bounded/repeated work and behavior.
+- Release tests use synthetic package trees and temporary archives. Verify
+  missing runtime components, user-data exclusion, archive contents, checksums,
+  and preservation of an existing delivery; never use a client's package.

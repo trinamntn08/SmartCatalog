@@ -6,11 +6,13 @@ apply to changes under `src/smartcatalog/db/`.
 - Keep `CatalogDB` as the public persistence facade. Put reusable SQL and row
   mapping in repositories rather than adding SQL to UI controllers.
 - Open one SQLite connection per operation or thread. A caller that supplies a
-  connection owns grouped commits and closing it; preserve each public method's
-  established commit contract.
+  connection closes it; preserve each public method's established commit
+  contract, including methods that commit even with a supplied connection.
 - Keep foreign keys enabled and preserve item, asset, and link synchronization.
 - Add fresh-schema changes to `SCHEMA_SQL` and existing-database compatibility
   to the explicit compatibility path. Never use a live catalog for migration
   tests.
 - Preserve portable path mapping and non-file tokens such as `excel:...`.
+- Repeated-path resolution in `list_items()` is cached only for that read.
+  Preserve fresh resolution on subsequent reads and after database switches.
 - Test fresh databases and in-place upgrades using disposable directories.

@@ -14,3 +14,6 @@ apply to changes under `src/smartcatalog/services/`.
 - Close documents, workbooks, images, connections, and temporary resources
   deterministically, including failure paths.
 - Exercise workflow changes with generated fixtures and disposable directories.
+- The backup service writes `catalog.db`, `assets/`, and `catalog_pdfs/` under
+  the destination. It does not copy installation `settings.json`; keep
+  documentation and any future restore flow explicit about that distinction.

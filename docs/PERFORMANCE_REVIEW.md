@@ -5,6 +5,9 @@ active startup, state/settings, database/path mapping, product list, image
 panels, PDF import/crop, Excel import/export, backup, and executable packaging
 paths. User data and the unrelated workbook in the worktree were not inspected.
 
+This records the investigation and fixes at Git revision `f1ffdd0`. For the
+current packaging and delivery process, use [BUILD_EXE.md](../BUILD_EXE.md).
+
 ## Confirmed causes and changes
 
 1. **The initial catalog was loaded twice.** `MainWindow.__init__` queued a

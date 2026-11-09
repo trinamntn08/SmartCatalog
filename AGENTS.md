@@ -24,6 +24,9 @@ Normal startup is:
 
 `run.py` -> `smartcatalog.main.start_ui()` -> `AppState` -> `CatalogDB` -> `create_main_window()`
 
+`start_ui` shows the splash before importing the main window and owns the
+single initial catalog refresh. Do not add a second constructor refresh.
+
 The active layer map is:
 
 - `domain/`: persisted and UI-facing models.
@@ -85,11 +88,21 @@ Persistence rules:
   Relative values resolve from `config/database/`; the first-launch and legacy
   default is `sql/catalog.db`. `AppState.db_path`, never a separately
   hard-coded catalog path, must be passed to `CatalogDB` and backup workflows.
-- The portable user-data unit is the complete `config/database/` directory,
-  including settings, the configured database, assets, and catalog PDFs.
-  Moving only the SQLite file does not move its external images or PDFs.
-- Paths under `config/database/` are deliberately stored relative to the data directory through `CatalogDB.to_db_path()` and resolved through `from_db_path()`. Preserve special non-file tokens such as `excel:...`.
-- `CatalogDB` does not retain a shared connection. Open one connection per operation/thread. If a connection is passed into DB helpers, the caller owns grouped commits and closing it.
+- Installation settings remain at `project_dir/config/database/settings.json`.
+  After selecting another database, `AppState.data_dir` is its parent (or the
+  parent of `sql/` when the database is in a folder named `sql`). Its `assets/`
+  and `catalog_pdfs/` belong to that active data root. Preserve the installation
+  settings AND the complete active data root when they are separate. Moving
+  only the SQLite file does not move its external images or PDFs; references
+  outside the active root also require separate preservation.
+- Paths under the active data directory (default `config/database/`) are stored
+  relatively through `CatalogDB.to_db_path()` and resolved through
+  `from_db_path()`. Preserve special non-file tokens such as `excel:...`.
+- `CatalogDB` does not retain a shared connection. Open one connection per
+  operation/thread. The caller closes a supplied connection, but must preserve
+  each method's commit contract: some existing methods commit even with a
+  supplied connection. Do not assume a caller-owned connection makes a whole
+  workflow atomic; transaction changes require dedicated regression coverage.
 - Schema additions belong in `SCHEMA_SQL`; compatibility for existing databases belongs in `_ensure_columns()` or a deliberate, tested migration.
 - Keep foreign keys enabled and keep `assets` and `item_asset_links` synchronized with item image changes.
 - Image order is represented by link order, with `is_primary` sorted first. Reordering currently rebuilds links while retaining metadata. The first UI image is made primary when the form is saved.
@@ -107,7 +120,18 @@ are summarized in `docs/ARCHITECTURE.md` and described for users in
 `docs/USER_GUIDE.md`. Preserve their established matching, overwrite, image,
 and portability behavior unless a task explicitly changes it.
 
-Long PDF, Excel, image, and backup work runs off the UI thread. Tkinter widgets and variables must be accessed only on the UI thread through `root.after(...)`, `_safe_ui`, `_ui_call`, or the established equivalent. A worker may wait for a UI-thread decision only through the existing event/dialog pattern; do not call dialogs directly from a worker.
+The backup service/controller is tested, but its toolbar button is currently
+hidden. User instructions must describe a closed-app copy of the active data
+folder and installation settings, rather than promise a visible backup action.
+The pinned workbook stack supports `.xlsx`; the dialog also lists `.xls`, but
+that filter does not establish supported legacy workbook parsing.
+
+PDF/Excel/backup orchestration uses workers. Some current image decoding and
+crop rendering remains synchronous; see `docs/PERFORMANCE_REVIEW.md`. Keep new
+long-running work off the UI thread. Tkinter widgets and variables must be
+accessed only on the UI thread through `root.after(...)`, `_safe_ui`, `_ui_call`,
+or the established equivalent. A worker may wait for a UI-thread decision only
+through the existing event/dialog pattern; do not call dialogs from a worker.
 
 ## Development setup
 
@@ -141,8 +165,9 @@ Minimum non-GUI validation is available through one canonical command:
 .\tools\check.ps1
 ```
 
-The script prefers the repository `venv`, then `.venv`, and otherwise uses
-`python` from `PATH`. It verifies Python and imports, runs high-signal Ruff
+The script prefers `.venv-agent`, then the legacy `venv` and `.venv`, and
+otherwise uses `python` from `PATH`; `-PythonExe` overrides this choice. It
+verifies dependency consistency, Python and imports, runs high-signal Ruff
 checks and the complete discovered test suite, compiles the source, checks
 patch whitespace, and reports worktree status. The discovered test output is
 authoritative; do not duplicate an exact test count in current documentation.
@@ -162,11 +187,18 @@ The supported build is the checked-in PyInstaller configuration:
 
 - The setup command installs the complete pinned build environment, including
   PyInstaller, into `.venv-build`.
-- The script uses `build/` for PyInstaller intermediates and deliberately
-  removes/recreates `dist/` as the release output on every build. Never keep
-  user or irreplaceable files in `dist/`.
+- The default script uses `build/` for intermediates and replaces `dist/` only
+  after preflight succeeds. It refuses an existing release containing `config/`.
+  Use `-OutputRoot` with a new/empty scratch directory for isolated verification
+  instead of touching existing `build/` or `dist/`. Never keep user files there.
 - `SmartCatalog.spec` adds `src/`, collects `pymupdf`/`fitz`, includes the icon and branding image, and produces `dist/SmartCatalog/SmartCatalog.exe`.
 - Deliver the complete `dist/SmartCatalog/` folder, including `_internal`, not the executable alone.
+- The script copies client instructions, verifies the package with
+  `tools/release.py`, and creates `dist/SmartCatalog-Windows.zip` plus its
+  `.sha256` file. Package before any smoke launch creates runtime data; test an
+  extracted disposable copy. CI validates/builds on master pushes, pull
+  requests targeting master, and manual dispatch. Its artifact is not an
+  automatically published GitHub Release.
 - The build intentionally excludes the development database, `settings.json`,
   and imported user content. First launch creates the writable runtime layout
   and settings beside the executable. Existing-client upgrades must preserve
@@ -176,6 +208,20 @@ The supported build is the checked-in PyInstaller configuration:
   entry points.
 
 Do not edit generated `build/` or `dist/` contents. Change the spec or build script and rebuild instead.
+
+## Generated-file cleanup
+
+- Keep scratch builds and agent experiments under `.cache/` in a clearly named
+  disposable subdirectory. Remove your own scratch output when finished.
+- Bytecode directories, `.ruff_cache/`, and confirmed agent smoke-test logs
+  may be removed when cleanup is in scope. Verify absolute targets, avoid
+  reparse points, and never use an unrestricted repository-wide clean command.
+- `.cache/pip`, `.cache/pip-tools`, and `.cache/wheels` support setup/offline
+  installation. Preserve them unless cache eviction is explicitly requested.
+- Backup directories (including branding backups), virtual environments,
+  editor settings, and nonempty agent configuration are not disposable merely
+  because Git ignores them. Empty obsolete scaffolding may be removed after
+  checking that no tracked caller or instruction depends on it.
 
 ## Engineering guidance
 

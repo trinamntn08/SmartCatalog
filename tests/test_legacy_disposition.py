@@ -17,6 +17,7 @@ class LegacyDispositionTests(unittest.TestCase):
             "src/smartcatalog/ui/controllers/pdf_viewer_controller.py",
             "src/smartcatalog/utils/pdf_exporter.py",
             "src/smartcatalog/config/settings.py",
+            "src/smartcatalog/config/__init__.py",
         )
         self.assertEqual(
             [path for path in removed if (root / path).exists()],

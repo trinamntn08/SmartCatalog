@@ -61,7 +61,7 @@ try {
         & $pythonExe -m pip check
     }
     Invoke-CheckedCommand "Compile Python sources" {
-        & $pythonExe -m compileall -q run.py src tests
+        & $pythonExe -m compileall -q run.py src tests tools
     }
     Invoke-CheckedCommand "Import application modules" {
         & $pythonExe -c "import sys; sys.path.insert(0, 'src'); import smartcatalog; import smartcatalog.main"

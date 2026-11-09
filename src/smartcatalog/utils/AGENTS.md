@@ -13,3 +13,5 @@ apply to changes under `src/smartcatalog/utils/`.
   compatibility with disposable workbooks.
 - Close images, workbooks, archives, and temporary resources deterministically.
 - Do not turn convenience helpers into hidden filesystem or database state.
+- Release verification and packaging belong in `tools/release.py`, not runtime
+  utilities. Do not introduce build-tool imports into the application.

@@ -47,6 +47,10 @@ run.py
   -> create_main_window()
 ```
 
+The splash is shown before main-window imports. `start_ui` owns the single
+initial catalog refresh. See [PERFORMANCE_REVIEW.md](PERFORMANCE_REVIEW.md)
+before changing startup or list/image responsiveness.
+
 Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing workflow boundaries or
 persistence behavior.
 
@@ -103,15 +107,43 @@ The complete mandatory rules are in [AGENTS.md](../AGENTS.md).
 
 The script:
 
-1. validates the repository virtual environment;
-2. cleans the exact repository `dist\` directory;
+1. preflights Python, dependency imports/consistency, and required build inputs;
+2. cleans the exact output `dist\` directory, refusing a release with runtime data;
 3. writes PyInstaller intermediates to `build\`;
 4. writes the release to `dist\SmartCatalog\`;
-5. copies the runtime icon and branding asset.
+5. copies runtime branding and client instructions;
+6. verifies runtime files and user-data exclusion, then creates a ZIP/checksum.
 
-Distribute the complete `dist\SmartCatalog\` folder. See
+For isolated verification without replacing existing output:
+
+```powershell
+.\build_exe.ps1 -OutputRoot .cache\release-verification
+```
+
+The custom root must be new or empty; relative paths resolve from the project,
+not the caller's working directory. Smoke-test an extracted copy of the ZIP,
+because launching the runnable folder creates runtime data that must never be
+delivered. CI performs setup, validation, build, and artifact upload on master
+pushes, pull requests targeting master, and manual dispatch. It does not
+publish GitHub Releases or run a complete interactive delivery test.
+
+Distribute the checked ZIP and checksum, or the complete application folder. See
 [BUILD_EXE.md](../BUILD_EXE.md) for the clean-install checklist,
 existing-client data-preservation procedure, and licensing note.
+
+## Workspace cleanup
+
+Remove only identified generated output. Source/test/root `__pycache__/`,
+`.ruff_cache/`, confirmed agent smoke-test logs, and empty obsolete `.agents/`
+scaffolding are disposable. Setup's `.cache/pip`, `.cache/pip-tools`, and
+`.cache/wheels` are useful caches, including the offline wheelhouse. Branding
+backups, virtual environments, editor settings, runtime data, and nonempty
+agent configuration require separate justification before removal. Avoid
+`git clean -fdx`: it includes ignored user data and environments.
+
+Put isolated experiments under a named `.cache/` subdirectory, verify resolved
+absolute targets before cleanup, and remove only the scratch directory created
+for the task. Never traverse `to_integrate/` during an audit or cleanup.
 
 ## Before submitting a change
 

@@ -8,6 +8,8 @@ Use this page to find the right document quickly.
   export workflows.
 - [Windows release instructions](../BUILD_EXE.md) — how maintainers build and
   package the client application.
+- [Packaged client instructions](RELEASE_README.md) — the quick start copied
+  beside the executable as `README.md`.
 
 ## For developers
 

@@ -11,7 +11,7 @@ working catalog in SQLite, and exports formatted Excel workbooks.
 - Merge Vietnamese and English descriptions from Excel.
 - Import embedded Excel images and manage product images manually.
 - Search, sort, edit, validate, and review catalog items.
-- Back up the database and associated files.
+- Reopen backed-up catalogs with their associated assets and PDFs.
 - Export formatted Excel catalogs with images, branding, and print settings.
 
 ## Run from source
@@ -36,16 +36,20 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\build_exe.ps1
 ```
 
-The script uses `build\` for intermediate files, cleans `dist\`, and creates
-the complete release in `dist\SmartCatalog\`. Distribute that entire folder,
-including `_internal`; do not distribute `SmartCatalog.exe` by itself.
+The script preflights the build environment, uses `build\` for intermediate
+files, replaces clean `dist\` output, and validates the complete release in
+`dist\SmartCatalog\`. Deliver `dist\SmartCatalog-Windows.zip` and its `.sha256`
+file. The ZIP includes the entire application folder, `_internal`, branding,
+and client instructions. It refuses a prior release containing runtime data.
 
 ## Important data safety
 
 SmartCatalog stores its working data under `config\database\` beside the source
-project or frozen executable. Do not delete that directory to reset the
-application. Use the built-in backup workflow before migrations, upgrades, or
-manual file operations.
+project or frozen executable by default. An externally selected catalog keeps
+its data beside that database. Close the app and copy the complete active data
+folder plus this installation's settings before upgrades or manual file
+operations. The backup toolbar action is currently hidden. Never delete the
+data directory to reset the application.
 
 ## Documentation
 
