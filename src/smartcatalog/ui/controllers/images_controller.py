@@ -163,15 +163,12 @@ class ImagesControllerMixin:
 
     def _on_select_thumbnail(self, image_path: str) -> None:
         self._selected_image_path = image_path
-        refreshed = False
-        if getattr(self, "_last_rendered_image_paths", None):
-            self._render_thumbnails(
-                self._last_rendered_image_paths,
-                source_map=getattr(self, "_last_rendered_source_map", None),
-            )
-            refreshed = True
-        if not refreshed:
-            self._set_preview_image(image_path)
+        # Selection only changes the border and preview. Rebuilding the grid
+        # would decode every source image again on each click/drag start.
+        for path, cell in getattr(self, "_thumb_cells", []):
+            selected = path == image_path
+            cell.configure(relief="solid" if selected else "flat", borderwidth=2 if selected else 0)
+        self._set_preview_image(image_path)
 
     def _set_preview_image(self, image_path: Optional[str]) -> None:
         if not getattr(self, "image_preview_label", None):

@@ -86,7 +86,7 @@ class MainWindow(
         self._update_pdf_tools_label()
         self._build_status_bar()
 
-        self.root.after(0, self.refresh_items)
+        # start_ui owns the initial refresh while the splash is visible.
 
     # -----------------
     # Layout
@@ -189,7 +189,7 @@ class MainWindow(
         self.search_var = tk.StringVar()
         self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
         self.search_entry.pack(side="left", fill="x", expand=True, padx=6)
-        self.search_entry.bind("<KeyRelease>", lambda _e: self._filter_items())
+        self.search_entry.bind("<KeyRelease>", self._schedule_filter_items)
 
         list_frame = ttk.LabelFrame(self.left_pane, text="📦 Sản phẩm", padding=6)
         list_frame.pack(fill="both", expand=True)

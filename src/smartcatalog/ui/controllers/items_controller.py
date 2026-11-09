@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 import unicodedata
 import re
@@ -27,6 +28,7 @@ class ItemsControllerMixin:
     """
 
     @staticmethod
+    @lru_cache(maxsize=2048)
     def _format_validated_at_vi(raw: str) -> str:
         s = str(raw or "").strip()
         if not s:
@@ -40,6 +42,7 @@ class ItemsControllerMixin:
         return s
 
     @staticmethod
+    @lru_cache(maxsize=16384)
     def _normalize_search_text(raw: str) -> str:
         s = str(raw or "").strip().lower()
         if not s:
@@ -56,28 +59,40 @@ class ItemsControllerMixin:
         self._filter_items()
         self._set_status(f"Đã tải {len(self.state.items_cache)} sản phẩm")
 
+    def _schedule_filter_items(self, _event=None) -> None:
+        job = getattr(self, "_filter_after_id", None)
+        if job is not None:
+            self.root.after_cancel(job)
+        self._filter_after_id = self.root.after(180, self._filter_items)
+
     def _filter_items(self) -> None:
+        job = getattr(self, "_filter_after_id", None)
+        if job is not None:
+            self.root.after_cancel(job)
+            self._filter_after_id = None
         q = self._normalize_search_text(self.search_var.get() or "")
         # Split by spaces/commas so partial multi-word queries can match
         # non-consecutive words in description fields (e.g. "Tim do").
         tokens = [t.strip() for t in re.split(r"[,\s]+", q) if t.strip()]
 
-        for row in self.items_tree.get_children():
-            self.items_tree.delete(row)
+        rows = self.items_tree.get_children()
+        if rows:
+            self.items_tree.delete(*rows)
 
         for it in self.state.items_cache:
-            text = (
-                f"{it.id} {it.code} {it.page or ''} "
-                f"{getattr(it,'category','')} {getattr(it,'shape','')} {getattr(it,'blade_tip','')} "
-                f"{getattr(it,'surface_treatment','')} {getattr(it,'material','')} "
-                f"{getattr(it,'author','')} {getattr(it,'dimension','')} {getattr(it,'small_description','')} "
-                f"{it.description} {getattr(it,'description_excel','')} {getattr(it,'description_vietnames_from_excel','')} "
-                f"{'✅' if getattr(it, 'validated', False) else ''} {getattr(it, 'validated_at', '')}"
-            )
-            text = self._normalize_search_text(text)
+            if tokens:
+                text = (
+                    f"{it.id} {it.code} {it.page or ''} "
+                    f"{getattr(it,'category','')} {getattr(it,'shape','')} {getattr(it,'blade_tip','')} "
+                    f"{getattr(it,'surface_treatment','')} {getattr(it,'material','')} "
+                    f"{getattr(it,'author','')} {getattr(it,'dimension','')} {getattr(it,'small_description','')} "
+                    f"{it.description} {getattr(it,'description_excel','')} {getattr(it,'description_vietnames_from_excel','')} "
+                    f"{'✅' if getattr(it, 'validated', False) else ''} {getattr(it, 'validated_at', '')}"
+                )
+                text = self._normalize_search_text(text)
 
-            if tokens and not all(t in text for t in tokens):
-                continue
+                if not all(t in text for t in tokens):
+                    continue
 
             validated_at = self._format_validated_at_vi(getattr(it, "validated_at", ""))
             tags = ("match",) if tokens else ()
@@ -240,11 +255,7 @@ class ItemsControllerMixin:
         self._update_pdf_tools_label()
         self._reload_selected_into_form()
 
-        try:
-            if getattr(it, "page", None):
-                self._render_candidates_for_page(int(it.page) - 1)
-        except Exception:
-            pass
+        # _reload_selected_into_form already requests the page images.
 
     def _on_items_tree_click_before_select(self, event) -> str | None:
         """

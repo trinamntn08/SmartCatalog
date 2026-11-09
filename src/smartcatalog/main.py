@@ -10,7 +10,6 @@ from typing import Optional
 
 from smartcatalog.state import AppState
 from smartcatalog.db.catalog_db import CatalogDB
-from smartcatalog.ui.main_window import create_main_window
 
 
 def _set_windows_app_id() -> None:
@@ -200,6 +199,9 @@ def start_ui(project_dir: Optional[Path] = None) -> None:
     splash, splash_bar = _show_startup_splash(root, resolved_project_dir)
 
     def _boot() -> None:
+        # Load PDF/Excel/UI dependencies after the splash has been displayed.
+        from smartcatalog.ui.main_window import create_main_window
+
         # Get screen size
         screen_w = root.winfo_screenwidth()
         screen_h = root.winfo_screenheight()

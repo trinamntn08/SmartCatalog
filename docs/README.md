@@ -22,6 +22,8 @@ Use this page to find the right document quickly.
 
 ## Maintenance reference
 
+- [Performance review](PERFORMANCE_REVIEW.md) — measured startup and UI
+  bottlenecks, targeted improvements, and follow-up work.
 - [Legacy module disposition](LEGACY_MODULE_DISPOSITION.md) — removed modules
   and dependencies, plus their active replacements.
 

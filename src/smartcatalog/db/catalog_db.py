@@ -113,6 +113,17 @@ class CatalogDB:
         try:
             select_cols, rows = list_item_rows(conn)
 
+            # A catalog commonly repeats the same PDF path on every item.
+            # Resolve each distinct path once per read, without retaining stale
+            # filesystem resolutions across refreshes or database switches.
+            resolved_paths: dict[str, str] = {}
+
+            def resolve_path(path: str) -> str:
+                key = str(path or "").strip()
+                if key not in resolved_paths:
+                    resolved_paths[key] = self.from_db_path(path)
+                return resolved_paths[key]
+
             has_assets = self._table_exists(conn, "assets")
             has_links = self._table_exists(conn, "item_asset_links")
 
@@ -142,28 +153,28 @@ class CatalogDB:
                 # images: links -> items.images fallback
                 images: list[str] = []
                 if item_id in linked_assets_map:
-                    images = [self.from_db_path(p) for p in linked_assets_map[item_id]]
+                    images = [resolve_path(p) for p in linked_assets_map[item_id]]
                 else:
                     # fallback: items.images (json list or ';' separated)
                     if "images" in select_cols:
                         raw = get("images", "") or ""
                         if isinstance(raw, (list, tuple)):
-                            images = [self.from_db_path(p) for p in list(raw)]
+                            images = [resolve_path(p) for p in list(raw)]
                         else:
                             s = str(raw).strip()
                             if s.startswith("["):
                                 try:
-                                    images = [self.from_db_path(p) for p in list(json.loads(s))]
+                                    images = [resolve_path(p) for p in list(json.loads(s))]
                                 except Exception:
                                     images = []
                             elif s:
-                                images = [self.from_db_path(p) for p in s.split(";") if p.strip()]
+                                images = [resolve_path(p) for p in s.split(";") if p.strip()]
 
                 items.append(
                     map_catalog_item(
                         get,
                         images=images,
-                        resolve_path=self.from_db_path,
+                        resolve_path=resolve_path,
                     )
                 )
 
